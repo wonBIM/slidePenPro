@@ -557,42 +557,42 @@ export default function App() {
     switch (simPage) {
       case 1:
         return (
-          <div className="relative flex h-full w-full flex-col justify-between bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-12 text-white overflow-hidden text-left">
+          <div className="relative flex h-full w-full flex-col justify-between bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-16 text-white overflow-hidden text-left">
             {/* Background glowing anim circles for futuristic look */}
             <div className="absolute -left-20 -top-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] animate-pulse" />
             <div className="absolute -right-20 -bottom-20 w-96 h-96 bg-pink-500/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: "2s" }} />
 
             <div className="relative z-10 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-pink-500 animate-ping" />
-                <span className="text-xs font-black tracking-widest text-indigo-300 uppercase">SlidePro Welcome Stage</span>
+              <div className="flex items-center gap-2.5">
+                <span className="h-3 w-3 rounded-full bg-pink-500 animate-ping" />
+                <span className="text-sm font-black tracking-widest text-indigo-300 uppercase">SlidePen Pro Welcome Stage</span>
               </div>
-              <span className="text-xs text-slate-500 font-bold font-mono">Slide 01 / 04</span>
+              <span className="text-sm text-slate-500 font-bold font-mono">Slide 01 / 04</span>
             </div>
             
-            <div className="relative z-10 space-y-6 max-w-4xl my-auto">
-              <span className="px-3.5 py-1 bg-gradient-to-r from-pink-500/20 to-indigo-500/20 border border-indigo-400/30 text-indigo-300 rounded-full text-xs font-bold tracking-wide inline-block animate-bounce">
+            <div className="relative z-10 space-y-8 max-w-4xl my-auto">
+              <span className="px-4 py-1.5 bg-gradient-to-r from-pink-500/20 to-indigo-500/20 border border-indigo-400/30 text-indigo-300 rounded-full text-sm font-bold tracking-wide inline-block animate-bounce">
                 🎉 마법의 프레젠테이션 오버레이 보드
               </span>
-              <h1 className="text-6xl font-black tracking-tight leading-none bg-gradient-to-r from-white via-indigo-100 to-pink-300 bg-clip-text text-transparent font-sans drop-shadow-lg">
-                회의실과 교실을 사로잡는 <br />
-                <span className="text-indigo-400">발표 도구의 기적, SlidePro</span>
+              <h1 className="text-7xl font-black tracking-tight leading-none bg-gradient-to-r from-white via-indigo-100 to-pink-300 bg-clip-text text-transparent font-sans drop-shadow-2xl">
+                스마트한 발표 도구의 기적, <br />
+                <span className="text-indigo-400">SlidePen Pro</span>
               </h1>
-              <p className="text-slate-350 text-base max-w-2xl leading-relaxed">
+              <p className="text-slate-300 text-xl leading-relaxed max-w-3xl">
                 지루하고 딱딱한 발표는 그만! 중요 문구는 차분히 강조하고, 정답을 맞췄을 땐 폭죽과 하트로 최고의 재미를! 빔 프로젝터와 원격 화면 공유에서도 끊김 없이 작동하는 스마트 펜 보드입니다.
               </p>
             </div>
 
-            <div className="relative z-10 grid grid-cols-3 gap-5">
+            <div className="relative z-10 grid grid-cols-3 gap-6">
               {[
                 { emoji: "💡", title: "집중할 땐 스포트라이트", desc: "주변부를 블러링하여 청중의 시선을 중요한 단어 하나에 차분히 안착시킵니다.", border: "hover:border-blue-500/50" },
                 { emoji: "🎨", title: "칭찬할 땐 폭죽과 리액션", desc: "하트 뿜뿜 리액션과 오색 종이 폭죽 쇼로 학습 몰입도와 현장 재미를 2배로 키워줍니다.", border: "hover:border-pink-500/50" },
                 { emoji: "🔍", title: "확대할 땐 영역 드래그 줌", desc: "복잡한 표나 차트가 나오면 마우스로 쓱 긁어 화면 전체에 꽉 차게 줌인합니다.", border: "hover:border-yellow-500/50" }
               ].map((item, idx) => (
-                <div key={idx} className={`bg-slate-900/50 backdrop-blur-sm border border-slate-800/80 p-4.5 rounded-xl transition-all duration-300 transform hover:-translate-y-1 ${item.border}`}>
-                  <div className="text-2xl mb-2">{item.emoji}</div>
-                  <h3 className="font-extrabold text-slate-100 text-sm mb-1">{item.title}</h3>
-                  <p className="text-slate-400 text-xs leading-relaxed">{item.desc}</p>
+                <div key={idx} className={`bg-slate-900/55 backdrop-blur-md border border-slate-800/80 p-7 rounded-2xl transition-all duration-300 transform hover:-translate-y-1.5 ${item.border} shadow-xl`}>
+                  <div className="text-4xl mb-3">{item.emoji}</div>
+                  <h3 className="font-extrabold text-slate-100 text-xl mb-2">{item.title}</h3>
+                  <p className="text-slate-400 text-sm leading-relaxed">{item.desc}</p>
                 </div>
               ))}
             </div>
