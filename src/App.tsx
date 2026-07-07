@@ -737,9 +737,9 @@ export default function App() {
         className="fixed top-0 left-0 right-0 z-50 h-10 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/60 flex items-center justify-between px-4 text-slate-200 select-none cursor-move pointer-events-auto"
       >
         <div data-tauri-drag-region className="flex items-center gap-2">
-          <div className="h-2.5 w-2.5 rounded-full bg-indigo-500 animate-pulse" />
-          <span data-tauri-drag-region className="text-xs font-bold font-sans tracking-wide">
-            SlidePro 발표 캔버스 (마우스로 이곳을 잡고 드래그하여 발표 화면 모니터로 이동하세요)
+          <div className="h-2 w-2 rounded-full bg-pink-500 animate-pulse" />
+          <span data-tauri-drag-region className="text-[10px] font-black font-sans tracking-widest text-slate-300 uppercase">
+            SlidePen Pro
           </span>
         </div>
         <div className="flex items-center gap-2">
