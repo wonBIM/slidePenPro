@@ -570,17 +570,30 @@ export default function App() {
               <span className="text-sm text-slate-500 font-bold font-mono">Slide 01 / 04</span>
             </div>
             
-            <div className="relative z-10 space-y-8 max-w-4xl my-auto">
-              <span className="px-4 py-1.5 bg-gradient-to-r from-pink-500/20 to-indigo-500/20 border border-indigo-400/30 text-indigo-300 rounded-full text-sm font-bold tracking-wide inline-block animate-bounce">
-                🎉 마법의 프레젠테이션 오버레이 보드
-              </span>
-              <h1 className="text-7xl font-black tracking-tight leading-none bg-gradient-to-r from-white via-indigo-100 to-pink-300 bg-clip-text text-transparent font-sans drop-shadow-2xl">
-                스마트한 발표 도구의 기적, <br />
-                <span className="text-indigo-400">SlidePen Pro</span>
-              </h1>
-              <p className="text-slate-300 text-xl leading-relaxed max-w-3xl">
-                지루하고 딱딱한 발표는 그만! 중요 문구는 차분히 강조하고, 정답을 맞췄을 땐 폭죽과 하트로 최고의 재미를! 빔 프로젝터와 원격 화면 공유에서도 끊김 없이 작동하는 스마트 펜 보드입니다.
-              </p>
+            <div className="relative z-10 flex flex-1 items-center justify-between gap-12 my-auto">
+              {/* Left Column: Welcome description texts */}
+              <div className="space-y-8 max-w-xl text-left">
+                <span className="px-4 py-1.5 bg-gradient-to-r from-pink-500/20 to-indigo-500/20 border border-indigo-400/30 text-indigo-300 rounded-full text-sm font-bold tracking-wide inline-block animate-bounce">
+                  🎉 마법의 프레젠테이션 오버레이 보드
+                </span>
+                <h1 className="text-7xl font-black tracking-tight leading-none bg-gradient-to-r from-white via-indigo-100 to-pink-300 bg-clip-text text-transparent font-sans drop-shadow-2xl">
+                  스마트한 발표 도구의 기적, <br />
+                  <span className="text-indigo-400">SlidePen Pro</span>
+                </h1>
+                <p className="text-slate-350 text-base md:text-lg leading-relaxed">
+                  지루하고 딱딱한 발표는 그만! 중요 문구는 차분히 강조하고, 정답을 맞췄을 땐 폭죽과 하트로 최고의 재미를! 빔 프로젝터와 원격 화면 공유에서도 끊김 없이 작동하는 스마트 펜 보드입니다.
+                </p>
+              </div>
+
+              {/* Right Column: Beautiful AI-generated concept illustration */}
+              <div className="hidden lg:flex items-center justify-center w-[360px] h-[360px] rounded-2xl overflow-hidden border border-slate-800/80 bg-slate-950/40 p-3 shadow-2xl relative group">
+                <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/10 to-indigo-500/10 rounded-2xl opacity-40 blur-2xl" />
+                <img 
+                  src="/welcome_graphic.png" 
+                  alt="SlidePen Pro Concept Artwork" 
+                  className="relative z-10 w-full h-full object-cover rounded-xl shadow-xl transition-all duration-500 group-hover:scale-[1.03] group-hover:rotate-1"
+                />
+              </div>
             </div>
 
             <div className="relative z-10 grid grid-cols-3 gap-6">
