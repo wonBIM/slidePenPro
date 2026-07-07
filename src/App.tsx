@@ -557,32 +557,42 @@ export default function App() {
     switch (simPage) {
       case 1:
         return (
-          <div className="flex h-full w-full flex-col justify-between bg-slate-950 p-12 text-white">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-widest text-indigo-400 uppercase">SlidePro Executive Briefing</span>
-              <span className="text-xs text-slate-500">Slide 01 / 04</span>
+          <div className="relative flex h-full w-full flex-col justify-between bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-12 text-white overflow-hidden text-left">
+            {/* Background glowing anim circles for futuristic look */}
+            <div className="absolute -left-20 -top-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] animate-pulse" />
+            <div className="absolute -right-20 -bottom-20 w-96 h-96 bg-pink-500/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: "2s" }} />
+
+            <div className="relative z-10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-pink-500 animate-ping" />
+                <span className="text-xs font-black tracking-widest text-indigo-300 uppercase">SlidePro Welcome Stage</span>
+              </div>
+              <span className="text-xs text-slate-500 font-bold font-mono">Slide 01 / 04</span>
             </div>
             
-            <div className="space-y-6 max-w-4xl text-left">
-              <h1 className="text-5xl font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-indigo-500 bg-clip-text text-transparent font-sans">
-                Next-Gen Presentation Engine Growth Strategy
+            <div className="relative z-10 space-y-6 max-w-4xl my-auto">
+              <span className="px-3.5 py-1 bg-gradient-to-r from-pink-500/20 to-indigo-500/20 border border-indigo-400/30 text-indigo-300 rounded-full text-xs font-bold tracking-wide inline-block animate-bounce">
+                🎉 마법의 프레젠테이션 오버레이 보드
+              </span>
+              <h1 className="text-6xl font-black tracking-tight leading-none bg-gradient-to-r from-white via-indigo-100 to-pink-300 bg-clip-text text-transparent font-sans drop-shadow-lg">
+                회의실과 교실을 사로잡는 <br />
+                <span className="text-indigo-400">발표 도구의 기적, SlidePro</span>
               </h1>
-              <p className="text-slate-400 text-lg leading-relaxed">
-                기존 글로벌 툴들이 제공하지 못하는 Windows OS 네이티브 최적화 줌 렌더링 및 인터랙티브 펀 모드를 통해 공공 교육 및 대기업 회의실 시장을 타깃으로 독점적 시장 점유율을 확보합니다.
+              <p className="text-slate-350 text-base max-w-2xl leading-relaxed">
+                지루하고 딱딱한 발표는 그만! 중요 문구는 차분히 강조하고, 정답을 맞췄을 땐 폭죽과 하트로 최고의 재미를! 빔 프로젝터와 원격 화면 공유에서도 끊김 없이 작동하는 스마트 펜 보드입니다.
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-6 text-left">
+            <div className="relative z-10 grid grid-cols-3 gap-5">
               {[
-                { title: "Windows 최적화", desc: "Win32 API 연동 마우스 관통 및 오버레이 초경량화 설계", value: "80% 점유율 선점" },
-                { title: "무중단 스마트 줌", desc: "ESC 쇼 이탈이 전혀 없는 휠 스크롤 화면 크롭/스케일", value: "발표 연속성 극대화" },
-                { title: "듀얼 비주얼 모드", desc: "사무 환경용 스포트라이트 및 학생 리워드용 폭죽 이펙트", value: "2 in 1 멀티 시나리오" }
+                { emoji: "💡", title: "집중할 땐 스포트라이트", desc: "주변부를 블러링하여 청중의 시선을 중요한 단어 하나에 차분히 안착시킵니다.", border: "hover:border-blue-500/50" },
+                { emoji: "🎨", title: "칭찬할 땐 폭죽과 리액션", desc: "하트 뿜뿜 리액션과 오색 종이 폭죽 쇼로 학습 몰입도와 현장 재미를 2배로 키워줍니다.", border: "hover:border-pink-500/50" },
+                { emoji: "🔍", title: "확대할 땐 영역 드래그 줌", desc: "복잡한 표나 차트가 나오면 마우스로 쓱 긁어 화면 전체에 꽉 차게 줌인합니다.", border: "hover:border-yellow-500/50" }
               ].map((item, idx) => (
-                <div key={idx} className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-xl space-y-2">
-                  <span className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Key Driver {idx + 1}</span>
-                  <h3 className="font-bold text-slate-200 text-base">{item.title}</h3>
-                  <p className="text-slate-400 text-xs">{item.desc}</p>
-                  <div className="text-indigo-400 font-bold text-xs pt-2 border-t border-slate-800/40">{item.value}</div>
+                <div key={idx} className={`bg-slate-900/50 backdrop-blur-sm border border-slate-800/80 p-4.5 rounded-xl transition-all duration-300 transform hover:-translate-y-1 ${item.border}`}>
+                  <div className="text-2xl mb-2">{item.emoji}</div>
+                  <h3 className="font-extrabold text-slate-100 text-sm mb-1">{item.title}</h3>
+                  <p className="text-slate-400 text-xs leading-relaxed">{item.desc}</p>
                 </div>
               ))}
             </div>
