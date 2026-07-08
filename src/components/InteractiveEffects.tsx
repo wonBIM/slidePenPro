@@ -16,6 +16,7 @@ interface InteractiveEffectsProps {
   zoomLevel: number;
   zoomOffset: { x: number; y: number };
   soundEnabled: boolean;
+  isEffectsInteractive: boolean;
 }
 
 export interface InteractiveEffectsRef {
@@ -112,7 +113,7 @@ interface SimulatedStamp {
 }
 
 export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveEffectsProps>(
-  ({ stamps, zoomLevel, zoomOffset, soundEnabled }, ref) => {
+  ({ stamps, zoomLevel, zoomOffset, soundEnabled, isEffectsInteractive }, ref) => {
     const confettiCanvasRef = useRef<HTMLCanvasElement>(null);
     const effectsCanvasRef = useRef<HTMLCanvasElement>(null);
     
@@ -178,13 +179,36 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
     }, [stamps]);
 
     useEffect(() => {
+      const confettiCanvas = confettiCanvasRef.current;
+      const effectsCanvas = effectsCanvasRef.current;
+      
+      const handleResize = () => {
+        const parent = confettiCanvas?.parentElement;
+        if (parent) {
+          const rect = parent.getBoundingClientRect();
+          if (confettiCanvas) {
+            confettiCanvas.width = rect.width;
+            confettiCanvas.height = rect.height;
+          }
+          if (effectsCanvas) {
+            effectsCanvas.width = rect.width;
+            effectsCanvas.height = rect.height;
+          }
+        }
+      };
+
+      handleResize();
+      window.addEventListener("resize", handleResize);
+
       if (confettiCanvasRef.current) {
         myConfettiRef.current = confetti.create(confettiCanvasRef.current, {
           resize: true,
           useWorker: true
         });
       }
+
       return () => {
+        window.removeEventListener("resize", handleResize);
         stopScribbleSound();
         if (audioCtxRef.current) {
           audioCtxRef.current.close();
@@ -1074,7 +1098,9 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         <canvas 
           ref={effectsCanvasRef} 
           onClick={handleCanvasClick}
-          className="absolute inset-0 h-full w-full z-10 pointer-events-auto" 
+          className={`absolute inset-0 h-full w-full z-10 ${
+            isFrozen || isEffectsInteractive ? "pointer-events-auto" : "pointer-events-none"
+          }`} 
         />
       </div>
     );

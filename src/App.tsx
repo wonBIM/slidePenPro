@@ -189,8 +189,7 @@ export default function App() {
     return () => cancelAnimationFrame(frameId);
   }, [isSpinning]);
 
-  const isDrawingCanvasInteractive = isAreaZoomActive || isDrawing || currentStamp !== null;
-  const isEffectsCanvasInteractive = cursorTrailType !== "none" || showSpinner || showTimer;
+  const isEffectsInteractive = !isDrawing && currentStamp === null && !isAreaZoomActive;
 
   // ⚙️ Dynamic Stamp Presets Store
   const [presetStamps, setPresetStamps] = useState<PresetStamp[]>([
@@ -1002,7 +1001,7 @@ export default function App() {
       )}
 
       {/* 3. Drawing Canvas Engine (CONTAINED AND CLIPPED inside fixed bounds for coordinate sync & no leaks) */}
-      <div className={`fixed top-10 bottom-28 left-0 right-0 overflow-hidden ${isDrawingCanvasInteractive ? "pointer-events-auto" : "pointer-events-none"}`} style={{ zIndex: 30 }}>
+      <div className="fixed top-10 bottom-28 left-0 right-0 pointer-events-none overflow-hidden" style={{ zIndex: 30 }}>
         <DrawingCanvas
           strokes={currentStrokes}
           setStrokes={setCurrentStrokes}
@@ -1025,13 +1024,14 @@ export default function App() {
       </div>
 
       {/* 4. Interactive Effects Component (CONTAINED AND CLIPPED inside fixed bounds for coordinate sync & no leaks) */}
-      <div className={`fixed top-10 bottom-28 left-0 right-0 overflow-hidden ${isEffectsCanvasInteractive ? "pointer-events-auto" : "pointer-events-none"}`} style={{ zIndex: 35 }}>
+      <div className="fixed top-10 bottom-28 left-0 right-0 pointer-events-none overflow-hidden" style={{ zIndex: 35 }}>
         <InteractiveEffects
           ref={effectsRef}
           stamps={currentStamps}
           zoomLevel={zoomLevel}
           zoomOffset={zoomOffset}
           soundEnabled={soundEnabled}
+          isEffectsInteractive={isEffectsInteractive}
         />
       </div>
 
