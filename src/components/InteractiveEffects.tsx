@@ -259,11 +259,11 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             bubbleParticlesRef.current.push({
               x,
               y,
-              vx: (Math.random() - 0.5) * 1.2,
-              vy: -0.6 - Math.random() * 1.0,
-              radius: 4 + Math.random() * 8,
-              opacity: 0.85,
-              color: `hsla(${Math.random() * 360}, 90%, 75%, 0.6)`
+              vx: (Math.random() - 0.5) * 1.5,
+              vy: -0.8 - Math.random() * 1.5,
+              radius: 12 + Math.random() * 18,
+              opacity: 0.88,
+              color: `hsla(${Math.random() * 360}, 90%, 75%, 0.65)`
             });
           }
         }
@@ -942,14 +942,14 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             ctx.save();
             ctx.globalAlpha = b.opacity;
             ctx.strokeStyle = b.color;
-            ctx.lineWidth = 1.0;
+            ctx.lineWidth = 1.8;
             ctx.beginPath();
             ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
             ctx.stroke();
 
-            ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+            ctx.fillStyle = "rgba(255, 255, 255, 0.48)";
             ctx.beginPath();
-            ctx.arc(b.x - b.radius * 0.3, b.y - b.radius * 0.3, b.radius * 0.15, 0, Math.PI * 2);
+            ctx.arc(b.x - b.radius * 0.3, b.y - b.radius * 0.3, b.radius * 0.18, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.restore();

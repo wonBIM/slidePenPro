@@ -1035,6 +1035,21 @@ export default function App() {
         />
       </div>
 
+      {/* 4.5. Floating Zoom Reset Button (Visible when zoomLevel > 1.0 to assist returning from area zoom) */}
+      {zoomLevel > 1.0 && (
+        <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-50 animate-bounce">
+          <button
+            onClick={handleResetZoom}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-650 via-pink-600 to-indigo-600 hover:from-red-500 hover:to-indigo-500 text-white font-black text-sm rounded-full shadow-2xl border border-red-400/20 transition-all duration-300 hover:scale-105 active:scale-95"
+            title="ESC 키를 눌러도 스마트 줌을 복구할 수 있습니다"
+          >
+            <span className="text-base">❌</span>
+            <span>스마트 줌 화면 복원 (Reset)</span>
+            <span className="ml-1 px-1.5 py-0.5 bg-black/40 text-[10px] rounded text-slate-350 border border-white/10">ESC</span>
+          </button>
+        </div>
+      )}
+
       {/* 5. Mini Floating Dock Controller UI */}
       <FloatingToolbar
         mode={mode}
