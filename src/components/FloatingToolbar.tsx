@@ -7,7 +7,6 @@ import {
   Trash2,
   ZoomIn,
   Layout,
-  Focus,
   Maximize2,
   ChevronLeft,
   ChevronRight,
@@ -31,8 +30,6 @@ interface PresetStamp {
 }
 
 interface FloatingToolbarProps {
-  mode: "biz" | "fun";
-  setMode: (mode: "biz" | "fun") => void;
   isDrawing: boolean;
   setIsDrawing: (val: boolean) => void;
   strokeColor: string;
@@ -90,8 +87,6 @@ interface FloatingToolbarProps {
 }
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
-  mode,
-  setMode,
   isDrawing,
   setIsDrawing,
   strokeColor,
@@ -191,7 +186,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 transition-all duration-300 ease-out select-none">
       
       {/* 0.1 Dynamic Sticker Popover Panel */}
-      {mode === "fun" && showStickerPanel && !isCollapsed && (
+      {showStickerPanel && !isCollapsed && (
         <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800/80 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 z-50 w-[290px] backdrop-blur-md animate-fade-in">
           <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
             <span className="text-[11px] font-bold text-slate-200">🎯 스티커 선택 및 편집</span>
@@ -471,7 +466,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       )}
 
       {/* 0.3 High-Quality Tabbed Effects Chooser Popover Panel */}
-      {mode === "fun" && showEffectsPanel && !isCollapsed && (
+      {showEffectsPanel && !isCollapsed && (
         <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800/80 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 z-50 w-[270px] backdrop-blur-md animate-fade-in text-left">
           
           {/* Header */}
@@ -610,56 +605,16 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       {isCollapsed ? (
         <button
           onClick={() => setIsCollapsed(false)}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-violet-500/30 bg-slate-900/90 text-violet-400 shadow-lg shadow-violet-500/10 transition-transform hover:scale-115 active:scale-95 cursor-pointer"
+          className="flex h-13 w-13 items-center justify-center rounded-full border border-violet-500/30 bg-slate-900/90 text-violet-400 shadow-lg shadow-violet-500/10 transition-transform hover:scale-115 active:scale-95 cursor-pointer"
           title="툴바 열기"
         >
-          <PenTool className="h-4.5 w-4.5 animate-pulse" />
+          <PenTool className="h-5.5 w-5.5 animate-pulse" />
         </button>
       ) : (
-        <div className="glass-panel flex flex-wrap items-center justify-center gap-2 rounded-xl p-2 md:p-2.5 max-w-[95vw] shadow-2xl border border-slate-800/80">
+        <div className="glass-panel flex flex-wrap items-center justify-center gap-3 rounded-3xl p-3 md:p-3.5 px-6 max-w-[95vw] shadow-2xl border border-slate-800/80 hover:border-violet-500/20 transition-all duration-300">
           
-          {/* Mode Switcher */}
-          <div className="flex rounded-lg bg-slate-950/60 p-0.5 border border-slate-900 flex-shrink-0">
-            <button
-              onClick={() => {
-                setMode("biz");
-                setCurrentStamp(null);
-                setIsAreaZoomActive(false);
-                setShowStickerPanel(false);
-                setShowPenPanel(false);
-                setShowEffectsPanel(false);
-              }}
-              className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                mode === "biz"
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Focus className="h-3 w-3" />
-              <span>Biz 모드</span>
-            </button>
-            <button
-              onClick={() => {
-                setMode("fun");
-                setIsDrawing(false);
-                setIsAreaZoomActive(false);
-                setShowPenPanel(false);
-              }}
-              className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                mode === "fun"
-                  ? "bg-gradient-to-r from-pink-500 to-violet-500 text-white shadow-md shadow-pink-500/20"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Sparkles className="h-3 w-3" />
-              <span>Fun 모드</span>
-            </button>
-          </div>
-
-          <div className="h-px w-full bg-slate-800/60 md:h-7 md:w-px flex-shrink-0" />
-
           {/* Area Zoom & Drawing Mode Triggers */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => {
                 const nextState = !isAreaZoomActive;
@@ -672,14 +627,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   setShowEffectsPanel(false);
                 }
               }}
-              className={`flex h-8.5 items-center gap-1 rounded-md px-2.5 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex h-11 items-center gap-1.5 rounded-xl px-4.5 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 ${
                 isAreaZoomActive
-                  ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400 font-bold"
-                  : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+                  ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400 font-bold shadow-md shadow-yellow-500/10"
+                  : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800 hover:text-slate-200"
               }`}
               title="마우스 드래그로 지정한 영역을 즉시 확대 (ESC로 리셋)"
             >
-              <Maximize className="h-3.5 w-3.5" />
+              <Maximize className="h-4 w-4" />
               <span>영역 확대 Zoom</span>
             </button>
 
@@ -694,14 +649,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 setShowStickerPanel(false);
                 setShowEffectsPanel(false);
               }}
-              className={`flex h-8.5 items-center gap-1 rounded-md px-2.5 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex h-11 items-center gap-1.5 rounded-xl px-4.5 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 ${
                 isDrawing
-                  ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 font-bold"
-                  : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+                  ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 font-bold shadow-md shadow-emerald-500/10"
+                  : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800 hover:text-slate-200"
               }`}
               title="판서 그리기 활성화"
             >
-              <PenTool className="h-3.5 w-3.5" />
+              <PenTool className="h-4 w-4" />
               <span>{isDrawing ? "판서 모드" : "일반 마우스"}</span>
             </button>
           </div>
@@ -709,42 +664,43 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           {/* 🎨 Unified Drawing Popover Trigger */}
           {isDrawing && !isAreaZoomActive && (
             <>
-              <div className="h-px w-full bg-slate-800/60 md:h-7 md:w-px flex-shrink-0" />
+              <div className="h-7 w-px bg-slate-800/60 flex-shrink-0" />
               <button
                 onClick={() => {
                   setShowPenPanel(!showPenPanel);
                   setShowStickerPanel(false);
                   setShowEffectsPanel(false);
                 }}
-                className={`flex h-8.5 items-center gap-1 rounded-md px-2.5 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                className={`flex h-11 items-center gap-1.5 rounded-xl px-4.5 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 ${
                   showPenPanel
                     ? "bg-violet-500/25 border-violet-500/50 text-violet-400 font-bold"
-                    : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+                    : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800 hover:text-slate-200"
                 }`}
                 title="펜 색상, 두께, 형광펜 및 소멸 시간 조작"
               >
-                <Settings className="h-3.5 w-3.5" />
+                <Settings className="h-4 w-4" />
                 <span>🎨 펜 설정</span>
               </button>
             </>
           )}
 
-          {/* Biz specific features: Smart Snap & Spotlight Sizer */}
-          {mode === "biz" && !isAreaZoomActive && (
+          {/* Smart Snap & Spotlight Sizers (Unified to always be accessible!) */}
+          {!isAreaZoomActive && (
             <>
-              <div className="h-px w-full bg-slate-800/60 md:h-7 md:w-px flex-shrink-0" />
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="h-7 w-px bg-slate-800/60 flex-shrink-0" />
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => setSmartSnap(!smartSnap)}
-                  className={`h-8.5 rounded-md px-2 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                  className={`h-11 rounded-xl px-4 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 ${
                     smartSnap
-                      ? "bg-blue-500/20 border-blue-500/50 text-blue-400"
-                      : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-slate-200"
+                      ? "bg-blue-500/20 border-blue-500/50 text-blue-400 font-bold shadow-md shadow-blue-500/10"
+                      : "bg-slate-800/55 border-slate-700/50 text-slate-400 hover:text-slate-200"
                   }`}
                   title="직선 및 사각형 그릴 때 도형으로 자동 자동 보정"
                 >
-                  스냅 {smartSnap ? "On" : "Off"}
+                  📐 스냅 {smartSnap ? "On" : "Off"}
                 </button>
+                
                 <button
                   onClick={() => {
                     setSpotlightActive(!spotlightActive);
@@ -752,23 +708,23 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                       setIsDrawing(false);
                     }
                   }}
-                  className={`h-8.5 rounded-md p-1.5 border transition-all cursor-pointer flex-shrink-0 ${
+                  className={`h-11 rounded-xl p-3 border transition-all cursor-pointer flex-shrink-0 hover:scale-110 active:scale-95 ${
                     spotlightActive
-                      ? "bg-amber-500/20 border-amber-500/50 text-amber-400"
-                      : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-slate-200"
+                      ? "bg-amber-500/20 border-amber-500/50 text-amber-400 font-bold shadow-md shadow-amber-500/10"
+                      : "bg-slate-800/55 border-slate-700/50 text-slate-400 hover:text-slate-200"
                   }`}
                   title="스포트라이트 빔 강조 (휠/대괄호키로 크기 조절)"
                 >
-                  <Maximize2 className="h-3.5 w-3.5" />
+                  <Maximize2 className="h-4.5 w-4.5" />
                 </button>
               </div>
             </>
           )}
 
-          {/* Fun specific features: COMPACT Sticker & Effects Popovers */}
-          {mode === "fun" && !isAreaZoomActive && (
+          {/* Sticker & Effects Popovers (Unified to always be accessible!) */}
+          {!isAreaZoomActive && (
             <>
-              <div className="h-px w-full bg-slate-800/60 md:h-7 md:w-px flex-shrink-0" />
+              <div className="h-7 w-px bg-slate-800/60 flex-shrink-0" />
               
               {/* Compact Sticker popover trigger button */}
               <button
@@ -778,14 +734,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   setShowPenPanel(false);
                   setShowEffectsPanel(false);
                 }}
-                className={`flex h-8.5 items-center gap-1 rounded-md px-2 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                className={`flex h-11 items-center gap-1.5 rounded-xl px-4 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 ${
                   showStickerPanel || currentStamp
-                    ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-bold"
-                    : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+                    ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-bold shadow-md shadow-pink-500/10"
+                    : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800 hover:text-slate-200"
                 }`}
                 title="스티커 선택, 내용 편집 및 추가/삭제 패널 열기"
               >
-                <Settings className="h-3.5 w-3.5" />
+                <Settings className="h-4 w-4" />
                 <span>⚙️ 스티커</span>
               </button>
 
@@ -796,37 +752,37 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   setShowStickerPanel(false);
                   setShowPenPanel(false);
                 }}
-                className={`flex h-8.5 items-center gap-1 rounded-md px-2.5 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                className={`flex h-11 items-center gap-1.5 rounded-xl px-4 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 ${
                   showEffectsPanel || cursorTrailType !== "none" || neonBorderActive
                     ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-bold shadow-lg shadow-pink-500/10"
-                    : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+                    : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800 hover:text-slate-200"
                 }`}
                 title="오색 폭죽, 하트 리액션, 불꽃 마우스, 비눗방울 마우스, 화면 지진/얼리기 등 장면 효과 종합 선택"
               >
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles className="h-4 w-4" />
                 <span>✨ 효과</span>
               </button>
 
               {/* Sound Option Toggle */}
               <button
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`h-8.5 rounded-md p-2 border transition-all cursor-pointer flex-shrink-0 ${
+                className={`h-11 rounded-xl p-3 border transition-all cursor-pointer flex-shrink-0 hover:scale-110 active:scale-95 ${
                   soundEnabled
-                    ? "bg-violet-500/20 border-violet-500/50 text-violet-400"
-                    : "bg-slate-800/50 border-slate-700/50 text-slate-550"
+                    ? "bg-violet-500/20 border-violet-500/50 text-violet-400 font-bold"
+                    : "bg-slate-800/55 border-slate-700/50 text-slate-550"
                 }`}
                 title={soundEnabled ? "소리 피드백 켬" : "소리 피드백 끔"}
               >
-                {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+                {soundEnabled ? <Volume2 className="h-4.5 w-4.5" /> : <VolumeX className="h-4.5 w-4.5" />}
               </button>
             </>
           )}
 
-          <div className="h-px w-full bg-slate-800/60 md:h-7 md:w-px flex-shrink-0" />
+          <div className="h-7 w-px bg-slate-800/60 flex-shrink-0" />
 
           {/* Presentation Source Selector */}
-          <div className="flex items-center gap-1 bg-slate-950/40 px-2 py-1 rounded-md border border-slate-900 flex-shrink-0">
-            <Layout className="h-3 w-3 text-slate-500" />
+          <div className="flex items-center gap-1.5 bg-slate-950/40 px-3 py-1.5 h-11 rounded-xl border border-slate-900 flex-shrink-0 hover:scale-105 transition-all">
+            <Layout className="h-4.5 w-4.5 text-slate-500" />
             <select
               value={presentationSource}
               onChange={(e) => {
@@ -841,7 +797,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 setShowPenPanel(false);
                 setShowEffectsPanel(false);
               }}
-              className="bg-transparent text-[10px] text-slate-400 outline-none cursor-pointer border-none py-0.5 font-sans"
+              className="bg-transparent text-[11px] text-slate-400 outline-none cursor-pointer border-none py-0.5 font-sans font-bold"
               title="발표용 화면 소스 선택"
             >
               <option value="simulator">🧪 샘플 PPT</option>
@@ -869,19 +825,19 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
             {presentationSource === "pdf" && (
               <button
                 onClick={() => pdfInputRef.current?.click()}
-                className="text-slate-500 hover:text-white"
+                className="text-slate-500 hover:text-white transition-colors"
                 title="다른 PDF 올리기"
               >
-                <Upload className="h-3 w-3" />
+                <Upload className="h-4 w-4" />
               </button>
             )}
             {presentationSource === "images" && (
               <button
                 onClick={() => imagesInputRef.current?.click()}
-                className="text-slate-500 hover:text-white"
+                className="text-slate-500 hover:text-white transition-colors"
                 title="다른 이미지들 올리기"
               >
-                <Upload className="h-3 w-3" />
+                <Upload className="h-4 w-4" />
               </button>
             )}
           </div>
@@ -889,26 +845,26 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           {/* Slide Navigation controls */}
           {presentationSource !== "screenshare" && totalPages > 0 && (
             <>
-              <div className="h-px w-full bg-slate-800/60 md:h-7 md:w-px flex-shrink-0" />
-              <div className="flex items-center gap-0.5 flex-shrink-0">
+              <div className="h-7 w-px bg-slate-800/60 flex-shrink-0" />
+              <div className="flex items-center gap-1.5 flex-shrink-0 h-11 bg-slate-950/40 rounded-xl px-3 border border-slate-900">
                 <button
                   onClick={onPrevPage}
                   disabled={currentPage === 1}
-                  className="p-1 hover:bg-slate-800 text-slate-300 disabled:opacity-30 rounded cursor-pointer"
+                  className="p-1 hover:bg-slate-800 text-slate-350 disabled:opacity-30 rounded cursor-pointer transition-colors"
                   title="이전 슬라이드"
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <ChevronLeft className="h-4.5 w-4.5" />
                 </button>
-                <span className="text-[9px] text-slate-400 font-mono select-none px-0.5">
+                <span className="text-[11px] text-slate-400 font-mono select-none px-1 font-bold">
                   {currentPage}/{totalPages}
                 </span>
                 <button
                   onClick={onNextPage}
                   disabled={currentPage === totalPages}
-                  className="p-1 hover:bg-slate-800 text-slate-300 disabled:opacity-30 rounded cursor-pointer"
+                  className="p-1 hover:bg-slate-800 text-slate-350 disabled:opacity-30 rounded cursor-pointer transition-colors"
                   title="다음 슬라이드"
                 >
-                  <ChevronRight className="h-3.5 w-3.5" />
+                  <ChevronRight className="h-4.5 w-4.5" />
                 </button>
               </div>
             </>
@@ -917,32 +873,32 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           {/* Zoom Info / Reset */}
           {zoomLevel > 1 && (
             <>
-              <div className="h-px w-full bg-slate-800/60 md:h-7 md:w-px flex-shrink-0" />
+              <div className="h-7 w-px bg-slate-800/60 flex-shrink-0" />
               <button
                 onClick={resetZoom}
-                className="flex h-8.5 items-center gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2 text-xs text-yellow-400 hover:bg-yellow-500/20 cursor-pointer flex-shrink-0"
+                className="flex h-11 items-center gap-1.5 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4.5 text-xs text-yellow-400 hover:bg-yellow-500/20 cursor-pointer flex-shrink-0 hover:scale-105 active:scale-95 transition-all font-black"
                 title="현재 줌 배율을 100%로 초기화"
               >
-                <ZoomIn className="h-3 w-3 animate-pulse" />
+                <ZoomIn className="h-4 w-4 animate-pulse" />
                 <span>{Math.round(zoomLevel * 100)}% 리셋</span>
               </button>
             </>
           )}
 
-          <div className="h-px w-full bg-slate-800/60 md:h-7 md:w-px flex-shrink-0" />
+          <div className="h-7 w-px bg-slate-800/60 flex-shrink-0" />
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {/* 🎡 Spinner Wheel Toggle Button (Gamification) */}
             <button
               onClick={() => {
                 setShowSpinner(!showSpinner);
                 setShowTimer(false); // close timer to avoid overlap
               }}
-              className={`h-8.5 rounded-md px-2 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+              className={`h-11 rounded-xl px-4.5 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 ${
                 showSpinner
                   ? "bg-pink-500/20 border-pink-500/50 text-pink-400 font-bold shadow-md shadow-pink-500/10"
-                  : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+                  : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800"
               }`}
               title="랜덤 추첨용 돌림판(스피너 휠) 열기"
             >
@@ -955,10 +911,10 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 setShowTimer(!showTimer);
                 setShowSpinner(false); // close spinner to avoid overlap
               }}
-              className={`h-8.5 rounded-md px-2 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+              className={`h-11 rounded-xl px-4.5 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 ${
                 showTimer
                   ? "bg-pink-500/20 border-pink-500/50 text-pink-400 font-bold shadow-md shadow-pink-500/10"
-                  : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+                  : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800"
               }`}
               title="카운트다운 플로팅 타이머 위젯 열기"
             >
@@ -967,14 +923,15 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 
             <button
               onClick={clearCanvas}
-              className="h-8.5 rounded-md p-2 bg-rose-600 hover:bg-rose-500 text-white border border-rose-500/80 shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center justify-center"
+              className="h-11 w-11 rounded-xl bg-rose-600 hover:bg-rose-500 text-white border border-rose-500/80 shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95"
               title="현재 페이지 판서 및 스탬프 모두 지우기"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-4.5 w-4.5" />
             </button>
+            
             <button
               onClick={() => setIsCollapsed(true)}
-              className="h-8.5 rounded-md px-2 text-[11px] border border-slate-700/50 text-slate-400 hover:text-slate-200 cursor-pointer"
+              className="h-11 rounded-xl px-4.5 text-xs font-black border border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800 cursor-pointer hover:scale-105 active:scale-95 transition-all"
               title="도크 접기"
             >
               접기

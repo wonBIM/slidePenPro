@@ -30,7 +30,7 @@ interface PresetStamp {
 
 export default function App() {
   // Core Application States
-  const [mode, setMode] = useState<"biz" | "fun">("biz");
+  const [mode, setMode] = useState<"biz" | "fun">("fun");
   const [isDrawing, setIsDrawing] = useState(false);
   const [strokeColor, setStrokeColor] = useState("#ef4444"); // default red
   const [strokeWidth, setStrokeWidth] = useState(5);
@@ -1052,8 +1052,6 @@ export default function App() {
 
       {/* 5. Mini Floating Dock Controller UI */}
       <FloatingToolbar
-        mode={mode}
-        setMode={setMode}
         isDrawing={isDrawing}
         setIsDrawing={setIsDrawing}
         strokeColor={strokeColor}
@@ -1137,7 +1135,7 @@ export default function App() {
       {/* 🎡 10. Spinner Wheel Overlay Modal (Gamification) */}
       {showSpinner && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-fade-in pointer-events-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-6 max-w-lg w-full relative">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-6 max-w-2xl w-full relative">
             <button 
               onClick={() => {
                 setShowSpinner(false);
@@ -1155,11 +1153,11 @@ export default function App() {
               <p className="text-xs text-slate-500 mt-1">참가 후보 이름을 입력하고 돌림판을 돌려보세요!</p>
             </div>
 
-            <div className="flex gap-6 items-center justify-center">
+            <div className="flex gap-8 items-center justify-center">
               {/* Spinner Wheel Visual Area */}
-              <div className="relative w-56 h-56 flex-shrink-0 flex items-center justify-center">
+              <div className="relative w-80 h-80 flex-shrink-0 flex items-center justify-center">
                 {/* Arrow Pointer indicator at top */}
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-20 w-0 h-0 border-x-8 border-x-transparent border-t-[16px] border-t-pink-500 filter drop-shadow-md" />
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-20 w-0 h-0 border-x-[10px] border-x-transparent border-t-[20px] border-t-pink-500 filter drop-shadow-md" />
                 
                 <div 
                   className="w-full h-full rounded-full border-4 border-slate-950 shadow-2xl relative overflow-hidden transition-transform duration-75"
@@ -1178,14 +1176,14 @@ export default function App() {
                   {/* Overlay labels inside wheel slices */}
                   {spinnerNames.split(",").map(n => n.trim()).filter(Boolean).map((name, i, arr) => {
                     const angle = 360 / arr.length;
-                    const rot = i * angle + (angle / 2);
+                    const rot = i * angle + (angle / 2) - 90; // Offset by -90 to align conic-gradient 12-o-clock with rotate 3-o-clock
                     return (
                       <div 
                         key={i}
-                        className="absolute top-1/2 left-1/2 origin-center text-[9px] font-black text-slate-900 pointer-events-none select-none tracking-tight text-center"
+                        className="absolute top-1/2 left-1/2 origin-center text-[10px] font-black text-slate-900 pointer-events-none select-none tracking-tight text-center"
                         style={{
-                          transform: `translate(-50%, -50%) rotate(${rot}deg) translate(48px) rotate(90deg)`,
-                          maxWidth: "36px",
+                          transform: `translate(-50%, -50%) rotate(${rot}deg) translate(82px) rotate(90deg)`,
+                          maxWidth: "60px",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap"
@@ -1198,7 +1196,7 @@ export default function App() {
                 </div>
                 
                 {/* Center core lock */}
-                <div className="absolute w-8 h-8 rounded-full bg-slate-900 border-2 border-slate-750 z-10 shadow-lg" />
+                <div className="absolute w-10 h-10 rounded-full bg-slate-900 border-2 border-slate-700 z-10 shadow-lg" />
               </div>
 
               {/* Setting Names Input box */}
