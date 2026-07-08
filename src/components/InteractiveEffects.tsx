@@ -1090,7 +1090,7 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
 
     return (
       <div 
-        className="absolute inset-0 h-full w-full overflow-hidden pointer-events-auto" 
+        className="absolute inset-0 h-full w-full overflow-hidden pointer-events-none" 
         style={{ zIndex: 35 }}
       >
         <canvas ref={confettiCanvasRef} className="absolute inset-0 h-full w-full pointer-events-none" />
