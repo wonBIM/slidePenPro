@@ -73,10 +73,15 @@ interface FloatingToolbarProps {
   presetStamps: PresetStamp[];
   setPresetStamps: React.Dispatch<React.SetStateAction<PresetStamp[]>>;
   handleEditPresetLabel: (id: string, newLabel: string) => void;
-  // ✨ Magic Trail & Emoji Reaction Burst
-  magicTrailActive: boolean;
-  setMagicTrailActive: (active: boolean) => void;
+  // ✨ Magic Trails & Scenic Visual Effects Props
+  cursorTrailType: "none" | "star" | "fire" | "bubble";
+  setCursorTrailType: (type: "none" | "star" | "fire" | "bubble") => void;
+  neonBorderActive: boolean;
+  setNeonBorderActive: (val: boolean) => void;
   triggerEmojiBurst: () => void;
+  triggerMeteorShower: () => void;
+  triggerScreenFreeze: () => void;
+  triggerEarthquake: () => void;
 }
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
@@ -119,14 +124,20 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   presetStamps,
   setPresetStamps,
   handleEditPresetLabel,
-  magicTrailActive,
-  setMagicTrailActive,
-  triggerEmojiBurst
+  cursorTrailType,
+  setCursorTrailType,
+  neonBorderActive,
+  setNeonBorderActive,
+  triggerEmojiBurst,
+  triggerMeteorShower,
+  triggerScreenFreeze,
+  triggerEarthquake
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showStickerPanel, setShowStickerPanel] = useState(false); // Sticker Popover
   const [showPenPanel, setShowPenPanel] = useState(false); // Pen Settings Popover
-  const [showEffectsPanel, setShowEffectsPanel] = useState(false); // Effects Menu Popover
+  const [showEffectsPanel, setShowEffectsPanel] = useState(false); // Effects Tab Popover
+  const [effectsTab, setEffectsTab] = useState<"particles" | "scenes">("particles"); // Effects tab state
   const [editingStampId, setEditingStampId] = useState<string | null>(null);
   
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -450,11 +461,13 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         </div>
       )}
 
-      {/* 0.3 Dynamic Effects Chooser Popover Panel (Confetti, Emoji Reaction, Magic Cursor Trail) */}
+      {/* 0.3 High-Quality Tabbed Effects Chooser Popover Panel (Zero width expansion, 7 spectacular effects!) */}
       {mode === "fun" && showEffectsPanel && !isCollapsed && (
-        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800/80 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 z-50 w-[240px] backdrop-blur-md animate-fade-in">
+        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800/80 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 z-50 w-[270px] backdrop-blur-md animate-fade-in text-left">
+          
+          {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
-            <span className="text-[11px] font-bold text-slate-200">✨ 리액션 효과 선택</span>
+            <span className="text-[11px] font-bold text-slate-200 flex items-center gap-1">✨ 시각 연출 및 장면 효과</span>
             <button
               onClick={() => setShowEffectsPanel(false)}
               className="text-slate-500 hover:text-white transition-colors"
@@ -463,45 +476,124 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
             </button>
           </div>
 
-          {/* 1. Confetti Show Button */}
-          <button
-            onClick={() => {
-              triggerConfetti();
-              setShowEffectsPanel(false);
-            }}
-            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-400 hover:to-violet-400 text-white text-xs font-bold shadow-lg shadow-pink-600/25 active:scale-95 transition-all cursor-pointer w-full"
-          >
-            <span>🎉 축하 폭죽 터뜨리기</span>
-          </button>
-
-          {/* 2. Emoji Burst Reaction Button */}
-          <button
-            onClick={() => {
-              triggerEmojiBurst();
-              setShowEffectsPanel(false);
-            }}
-            className="flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-950 border border-slate-850 hover:bg-slate-900 text-pink-400 text-xs font-bold active:scale-95 transition-all cursor-pointer w-full"
-          >
-            <span>❤️ 하트 이모지 뿜뿜</span>
-          </button>
-
-          {/* 3. Magic Pointer Trail Switch */}
-          <div className="flex items-center justify-between bg-slate-950 p-2 rounded-lg border border-slate-850">
-            <span className="text-[10px] text-slate-400 font-semibold">✨ 마법 별가루 커서</span>
+          {/* Mini Tabs Switcher */}
+          <div className="flex rounded-lg bg-slate-950 p-0.5 border border-slate-850">
             <button
-              onClick={() => {
-                setMagicTrailActive(!magicTrailActive);
-                setShowEffectsPanel(false);
-              }}
-              className={`flex h-7 items-center gap-1 px-2.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                magicTrailActive
-                  ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-bold"
-                  : "bg-slate-850 border-slate-750 text-slate-500"
+              onClick={() => setEffectsTab("particles")}
+              className={`flex-1 text-center py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
+                effectsTab === "particles" ? "bg-slate-800 text-pink-400" : "text-slate-500 hover:text-slate-350"
               }`}
             >
-              <span>{magicTrailActive ? "켬" : "끔"}</span>
+              🎉 리액션 & 커서
+            </button>
+            <button
+              onClick={() => setEffectsTab("scenes")}
+              className={`flex-1 text-center py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
+                effectsTab === "scenes" ? "bg-slate-800 text-pink-400" : "text-slate-500 hover:text-slate-350"
+              }`}
+            >
+              🎬 장면 임팩트
             </button>
           </div>
+
+          {/* TAB 1: Particles & Cursor Trails */}
+          {effectsTab === "particles" && (
+            <div className="flex flex-col gap-2.5 animate-fade-in">
+              <button
+                onClick={() => {
+                  triggerConfetti();
+                  setShowEffectsPanel(false);
+                }}
+                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-400 hover:to-violet-400 text-white text-[11px] font-extrabold shadow-md shadow-pink-600/20 active:scale-95 transition-all cursor-pointer w-full"
+              >
+                <span>🎉 축하 폭죽 쇼</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  triggerEmojiBurst();
+                  setShowEffectsPanel(false);
+                }}
+                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-slate-950 border border-slate-850 hover:bg-slate-900 text-pink-400 text-[11px] font-extrabold active:scale-95 transition-all cursor-pointer w-full"
+              >
+                <span>❤️ 하트 이모지 뿜뿜</span>
+              </button>
+
+              {/* Advanced Pointer Trails Selector */}
+              <div className="flex flex-col gap-1 bg-slate-950 p-2 rounded-lg border border-slate-850">
+                <span className="text-[9px] text-slate-500 font-bold">마우스 포인터 궤적 이펙트</span>
+                <select
+                  value={cursorTrailType}
+                  onChange={(e) => {
+                    setCursorTrailType(e.target.value as any);
+                    setShowEffectsPanel(false);
+                  }}
+                  className="bg-transparent text-[11px] text-slate-300 outline-none w-full cursor-pointer py-0.5 border-none font-sans font-semibold"
+                >
+                  <option value="none">❌ 마우스 효과 없음</option>
+                  <option value="star">✨ 마법 은하수 별가루</option>
+                  <option value="fire">🔥 이글이글 불꽃 포인터</option>
+                  <option value="bubble">🫧 뽀글뽀글 비눗방울</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: Screen-wide Scene Impact Effects (Awesome differential features) */}
+          {effectsTab === "scenes" && (
+            <div className="flex flex-col gap-2.5 animate-fade-in">
+              <button
+                onClick={() => {
+                  triggerScreenFreeze();
+                  setShowEffectsPanel(false);
+                }}
+                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-sky-950/80 border border-sky-800 hover:bg-sky-900 text-sky-300 text-[11px] font-extrabold active:scale-95 transition-all cursor-pointer w-full"
+                title="화면을 얼린 뒤 마우스로 클릭하면 유리창처럼 박살내기"
+              >
+                <span>🥶 화면 얼리기 & 깨기</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  triggerEarthquake();
+                  setShowEffectsPanel(false);
+                }}
+                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-amber-950/80 border border-amber-800 hover:bg-amber-900 text-amber-300 text-[11px] font-extrabold active:scale-95 transition-all cursor-pointer w-full"
+                title="화면 전체가 지진 난 것처럼 60fps 격렬히 쉐이크"
+              >
+                <span>🫨 화면 지진 흔들림</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  triggerMeteorShower();
+                  setShowEffectsPanel(false);
+                }}
+                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-indigo-950/80 border border-indigo-800 hover:bg-indigo-900 text-indigo-300 text-[11px] font-extrabold active:scale-95 transition-all cursor-pointer w-full"
+                title="하늘에서 아름다운 별똥별들이 무리지어 쏟아짐"
+              >
+                <span>☄️ 밤하늘 은하수 유성우</span>
+              </button>
+
+              {/* Border Chaser Toggle */}
+              <div className="flex items-center justify-between bg-slate-950 p-2 rounded-lg border border-slate-850 w-full">
+                <span className="text-[10px] text-slate-400 font-semibold">🚨 테두리 레이저 경보</span>
+                <button
+                  onClick={() => {
+                    setNeonBorderActive(!neonBorderActive);
+                    setShowEffectsPanel(false);
+                  }}
+                  className={`flex h-7 items-center gap-1 px-2.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                    neonBorderActive
+                      ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-bold"
+                      : "bg-slate-850 border-slate-750 text-slate-500"
+                  }`}
+                >
+                  <span>{neonBorderActive ? "켬" : "끔"}</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -688,7 +780,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 <span>⚙️ 스티커</span>
               </button>
 
-              {/* ✨ Compact Effects selector popover trigger button */}
+              {/* ✨ Compact Effects selector popover trigger button (Tabbed for 7 effects) */}
               <button
                 onClick={() => {
                   setShowEffectsPanel(!showEffectsPanel);
@@ -696,11 +788,11 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   setShowPenPanel(false);
                 }}
                 className={`flex h-8.5 items-center gap-1 rounded-md px-2.5 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
-                  showEffectsPanel || magicTrailActive
-                    ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-bold"
+                  showEffectsPanel || cursorTrailType !== "none" || neonBorderActive
+                    ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-bold shadow-lg shadow-pink-500/10"
                     : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:bg-slate-800"
                 }`}
-                title="종이 폭죽 쇼, 하트 리액션 뿜뿜, 은하수 별가루 마우스 트레일 선택"
+                title="오색 폭죽, 하트 리액션, 불꽃 마우스, 비눗방울 마우스, 화면 지진/얼리기 등 장면 효과 종합 선택"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>✨ 효과</span>

@@ -80,16 +80,34 @@ export default function App() {
   // ⏳ Auto Fade Option
   const [autoFadeActive, setAutoFadeActive] = useState(true);
 
-  // ✨ Interactive Effects States (Star Trail & Emoji reaction burst)
-  const [magicTrailActive, setMagicTrailActive] = useState(false);
+  // ✨ Interactive Visual Effects States
+  const [cursorTrailType, setCursorTrailType] = useState<"none" | "star" | "fire" | "bubble">("none");
+  const [neonBorderActive, setNeonBorderActive] = useState(false);
+  const [earthquakeActive, setEarthquakeActive] = useState(false);
 
-  // Sync Magic Star Trail with InteractiveEffects
+  // Sync cursor trail with InteractiveEffects component
   useEffect(() => {
-    effectsRef.current?.setMagicTrailActive(magicTrailActive);
-  }, [magicTrailActive]);
+    effectsRef.current?.setCursorTrailType(cursorTrailType);
+  }, [cursorTrailType]);
 
   const handleTriggerEmojiBurst = () => {
     effectsRef.current?.playEmojiBurst();
+  };
+
+  const handleTriggerMeteorShower = () => {
+    effectsRef.current?.playMeteorShower();
+  };
+
+  const handleTriggerScreenFreeze = () => {
+    effectsRef.current?.triggerScreenFreeze();
+  };
+
+  const handleTriggerEarthquake = () => {
+    setEarthquakeActive(true);
+    effectsRef.current?.playAudioPreset("buzzer");
+    setTimeout(() => {
+      setEarthquakeActive(false);
+    }, 1200); // Shake for 1.2 seconds
   };
 
   // ⚙️ Dynamic Stamp Presets Store
@@ -773,18 +791,57 @@ export default function App() {
         </div>
       </div>
 
-      {/* 1. Background Presenter Layer (CONTAINED: fixed top-10 bottom-28 layout for zero overlaps) */}
+      {/* 0.4 Embedded Visual Scene Effect CSS (Earthquake & Border laser spin) */}
+      <style>{`
+        @keyframes earthquake {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          10% { transform: translate(-5px, 4px) rotate(-0.5deg); }
+          20% { transform: translate(4px, -3px) rotate(0.5deg); }
+          30% { transform: translate(-4px, 3px) rotate(0deg); }
+          40% { transform: translate(3px, 4px) rotate(0.5deg); }
+          50% { transform: translate(-3px, -4px) rotate(-0.5deg); }
+          60% { transform: translate(4px, 3px) rotate(0.5deg); }
+          70% { transform: translate(-4px, -3px) rotate(-0.5deg); }
+          80% { transform: translate(3px, -3px) rotate(0deg); }
+          90% { transform: translate(-3px, 4px) rotate(0.5deg); }
+        }
+        .animate-earthquake {
+          animation: earthquake 0.12s infinite;
+        }
+        @keyframes borderSpin {
+          0% { border-image: linear-gradient(0deg, #ff007f, #bd00ff, #00e5ff, #39ff14) 1; }
+          25% { border-image: linear-gradient(90deg, #ff007f, #bd00ff, #00e5ff, #39ff14) 1; }
+          50% { border-image: linear-gradient(180deg, #ff007f, #bd00ff, #00e5ff, #39ff14) 1; }
+          75% { border-image: linear-gradient(270deg, #ff007f, #bd00ff, #00e5ff, #39ff14) 1; }
+          100% { border-image: linear-gradient(360deg, #ff007f, #bd00ff, #00e5ff, #39ff14) 1; }
+        }
+        .animate-border-spin {
+          animation: borderSpin 2.0s linear infinite;
+        }
+      `}</style>
+
+      {/* 1. Main Slide Presentation viewport under Zoom & Pan */}
       <div
         onMouseDown={handleBgMouseDown}
         onMouseMove={handleBgMouseMove}
         onMouseUp={handleBgMouseUp}
         onMouseLeave={handleBgMouseUp}
-        className="fixed top-10 bottom-28 left-0 right-0 select-none bg-slate-950 overflow-hidden"
+        className={`fixed top-10 bottom-28 left-0 right-0 select-none bg-slate-950 overflow-hidden ${
+          earthquakeActive ? "animate-earthquake" : ""
+        }`}
         style={{
           zIndex: 10,
           cursor: isPanning ? "grabbing" : zoomLevel > 1.0 ? "grab" : "default"
         }}
       >
+        {/* Screen-wide Neon Laser Border Chaser Overlay */}
+        {neonBorderActive && (
+          <div className="absolute inset-0 pointer-events-none z-40 border-[5px] border-transparent">
+            <div className="absolute inset-0 border-[5px] border-pink-500 animate-border-spin blur-xs" />
+            <div className="absolute inset-0 border-2 border-indigo-400 animate-border-spin" />
+          </div>
+        )}
+
         {/* A. Screenshare Presenter */}
         {presentationSource === "screenshare" && (
           <ScreenSharePresenter
@@ -934,9 +991,14 @@ export default function App() {
         presetStamps={presetStamps}
         setPresetStamps={setPresetStamps}
         handleEditPresetLabel={handleEditPresetLabel}
-        magicTrailActive={magicTrailActive}
-        setMagicTrailActive={setMagicTrailActive}
+        cursorTrailType={cursorTrailType}
+        setCursorTrailType={setCursorTrailType}
+        neonBorderActive={neonBorderActive}
+        setNeonBorderActive={setNeonBorderActive}
         triggerEmojiBurst={handleTriggerEmojiBurst}
+        triggerMeteorShower={handleTriggerMeteorShower}
+        triggerScreenFreeze={handleTriggerScreenFreeze}
+        triggerEarthquake={handleTriggerEarthquake}
       />
 
       {/* 6. Keys Shortcut Heads-Up Display (HUD) */}
