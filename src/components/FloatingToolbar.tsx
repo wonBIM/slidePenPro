@@ -834,7 +834,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
               onClick={clearCanvas}
-              className="h-8.5 rounded-md p-2 text-rose-450 border border-rose-500/15 hover:bg-rose-500/10 cursor-pointer"
+              className="h-8.5 rounded-md p-2 bg-rose-600 hover:bg-rose-500 text-white border border-rose-500/80 shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center justify-center"
               title="현재 페이지 판서 및 스탬프 모두 지우기"
             >
               <Trash2 className="h-3.5 w-3.5" />
