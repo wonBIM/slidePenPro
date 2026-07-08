@@ -186,6 +186,24 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
             </button>
           </div>
 
+          {/* 💡 Sticker ON/OFF State Indicator & Toggle Switch! */}
+          <div className="flex items-center justify-between bg-slate-950/70 p-2 rounded-lg border border-slate-850">
+            <span className="text-[10px] text-slate-300 font-extrabold tracking-tight">
+              {currentStamp ? `🟢 기능 켬 (${currentStamp === "custom" ? "커스텀" : "프리셋"})` : "🔴 스티커 기능 꺼짐"}
+            </span>
+            {currentStamp && (
+              <button
+                onClick={() => {
+                  setCurrentStamp(null);
+                }}
+                className="px-2 py-0.5 bg-rose-600/35 hover:bg-rose-500 border border-rose-500/40 text-rose-300 hover:text-white rounded text-[9px] font-black transition-all cursor-pointer"
+                title="스티커 찍기 중단 (일반 마우스 상태로 복구)"
+              >
+                기능 끄기 (OFF)
+              </button>
+            )}
+          </div>
+
           {/* Stckers preset lists */}
           <div className="flex flex-col gap-1 max-h-[180px] overflow-y-auto pr-0.5 no-scrollbar">
             {presetStamps.map((stamp) => {
