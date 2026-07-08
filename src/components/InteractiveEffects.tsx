@@ -275,6 +275,23 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       };
     }, [cursorTrailType, isFrozen]);
 
+    useEffect(() => {
+      let shatterTimer: any = null;
+      if (freezeAnimState === "frozen") {
+        shatterTimer = setTimeout(() => {
+          const canvas = effectsCanvasRef.current;
+          const clickX = canvas ? canvas.width / 2 : window.innerWidth / 2;
+          const clickY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+          triggerScreenShatter(clickX, clickY);
+        }, 1000);
+      }
+      return () => {
+        if (shatterTimer) {
+          clearTimeout(shatterTimer);
+        }
+      };
+    }, [freezeAnimState]);
+
     const playAudioPreset = (presetType: string) => {
       if (!soundEnabled) return;
 
