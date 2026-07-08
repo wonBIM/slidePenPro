@@ -380,15 +380,15 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       const newMeteors: MeteorParticle[] = [];
       const winW = window.innerWidth;
 
-      for (let i = 0; i < 25; i++) {
+      for (let i = 0; i < 75; i++) {
         newMeteors.push({
-          x: Math.random() * (winW * 1.2) - (winW * 0.2),
-          y: -50 - Math.random() * 200,
-          vx: 8 + Math.random() * 6,
-          vy: 6 + Math.random() * 5,
-          len: 40 + Math.random() * 80,
+          x: Math.random() * (winW * 1.3) - (winW * 0.3),
+          y: -50 - Math.random() * 350,
+          vx: 11 + Math.random() * 8,
+          vy: 8 + Math.random() * 6,
+          len: 50 + Math.random() * 90,
           color: colors[Math.floor(Math.random() * colors.length)],
-          opacity: 0.8 + Math.random() * 0.2
+          opacity: 0.85 + Math.random() * 0.15
         });
       }
       meteorParticlesRef.current = [...meteorParticlesRef.current, ...newMeteors];
@@ -881,7 +881,7 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
           if (m.opacity > 0 && m.y < canvas.height + 100 && m.x < canvas.width + 100) {
             ctx.save();
             ctx.globalAlpha = m.opacity;
-            ctx.lineWidth = 2.0;
+            ctx.lineWidth = 3.5; // Thicker meteor streak glow
 
             const headX = m.x;
             const headY = m.y;
@@ -900,10 +900,27 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
 
             ctx.fillStyle = "#ffffff";
             ctx.beginPath();
-            ctx.arc(headX, headY, 1.8, 0, Math.PI * 2);
+            ctx.arc(headX, headY, 2.5, 0, Math.PI * 2); // Larger star tip
             ctx.fill();
 
             ctx.restore();
+
+            // Eject stardust particles behind the falling meteor head for dramatic visual trail
+            if (Math.random() < 0.42) {
+              starParticlesRef.current.push({
+                id: Math.random().toString(36).substring(7),
+                x: headX + (Math.random() - 0.5) * 6,
+                y: headY + (Math.random() - 0.5) * 6,
+                vx: -m.vx * 0.15 + (Math.random() - 0.5) * 1.5,
+                vy: -m.vy * 0.15 + (Math.random() - 0.5) * 1.5,
+                size: 2.2 + Math.random() * 3.5,
+                opacity: 0.95,
+                color: m.color,
+                rot: Math.random() * Math.PI,
+                rotSpeed: (Math.random() - 0.5) * 0.1
+              });
+            }
+
             activeMeteors.push(m);
           }
         });
@@ -1033,11 +1050,7 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
 
     return (
       <div 
-        className={`absolute inset-0 h-full w-full overflow-hidden ${
-          isFrozen && freezeAnimState === "frozen" 
-            ? "pointer-events-auto cursor-pointer" 
-            : "pointer-events-none"
-        }`} 
+        className="absolute inset-0 h-full w-full overflow-hidden pointer-events-auto" 
         style={{ zIndex: 35 }}
       >
         <canvas ref={confettiCanvasRef} className="absolute inset-0 h-full w-full pointer-events-none" />

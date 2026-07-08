@@ -189,6 +189,8 @@ export default function App() {
     return () => cancelAnimationFrame(frameId);
   }, [isSpinning]);
 
+  const isPointerInteractive = isDrawing || currentStamp !== null || cursorTrailType !== "none" || isAreaZoomActive || showSpinner || showTimer;
+
   // ⚙️ Dynamic Stamp Presets Store
   const [presetStamps, setPresetStamps] = useState<PresetStamp[]>([
     { id: "excellent", label: "👍 참 잘했어요" },
@@ -999,7 +1001,7 @@ export default function App() {
       )}
 
       {/* 3. Drawing Canvas Engine (CONTAINED AND CLIPPED inside fixed bounds for coordinate sync & no leaks) */}
-      <div className="fixed top-10 bottom-28 left-0 right-0 pointer-events-none overflow-hidden" style={{ zIndex: 30 }}>
+      <div className={`fixed top-10 bottom-28 left-0 right-0 overflow-hidden ${isPointerInteractive ? "pointer-events-auto" : "pointer-events-none"}`} style={{ zIndex: 30 }}>
         <DrawingCanvas
           strokes={currentStrokes}
           setStrokes={setCurrentStrokes}
@@ -1022,7 +1024,7 @@ export default function App() {
       </div>
 
       {/* 4. Interactive Effects Component (CONTAINED AND CLIPPED inside fixed bounds for coordinate sync & no leaks) */}
-      <div className="fixed top-10 bottom-28 left-0 right-0 pointer-events-none overflow-hidden" style={{ zIndex: 35 }}>
+      <div className={`fixed top-10 bottom-28 left-0 right-0 overflow-hidden ${isPointerInteractive ? "pointer-events-auto" : "pointer-events-none"}`} style={{ zIndex: 35 }}>
         <InteractiveEffects
           ref={effectsRef}
           stamps={currentStamps}
@@ -1164,10 +1166,10 @@ export default function App() {
                     return (
                       <div 
                         key={i}
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 origin-center text-[10px] font-black text-slate-900 pointer-events-none select-none tracking-tight"
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 origin-center text-[9px] font-black text-slate-900 pointer-events-none select-none tracking-tight"
                         style={{
-                          transform: `rotate(${rot}deg) translate(70px) rotate(90deg)`,
-                          maxWidth: "50px",
+                          transform: `rotate(${rot}deg) translate(55px) rotate(90deg)`,
+                          maxWidth: "40px",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap"
@@ -1180,7 +1182,7 @@ export default function App() {
                 </div>
                 
                 {/* Center core lock */}
-                <div className="absolute w-8 h-8 rounded-full bg-slate-900 border-2 border-slate-700 z-10 shadow-lg" />
+                <div className="absolute w-8 h-8 rounded-full bg-slate-900 border-2 border-slate-750 z-10 shadow-lg" />
               </div>
 
               {/* Setting Names Input box */}
@@ -1217,60 +1219,62 @@ export default function App() {
         </div>
       )}
 
-      {/* ⏱️ 11. Floating Countdown Timer Widget (Gamification) */}
+      {/* ⏱️ 11. Floating Countdown Timer Widget (Gamification: Doubled visual size to w-28 h-28) */}
       {showTimer && (
-        <div className="fixed top-14 right-4 z-50 bg-slate-900/90 border border-slate-800 rounded-2xl p-4.5 shadow-2xl flex items-center gap-4.5 select-none animate-fade-in backdrop-blur-md pointer-events-auto">
-          <div className="relative w-14 h-14 flex items-center justify-center flex-shrink-0">
-            {/* SVG Ring Path */}
-            <svg className="w-full h-full -rotate-90">
+        <div className="fixed top-14 right-4 z-50 bg-slate-900/95 border border-slate-800 rounded-3xl p-6 shadow-2xl flex items-center gap-6 select-none animate-fade-in backdrop-blur-md pointer-events-auto">
+          <div className="relative w-28 h-28 flex items-center justify-center flex-shrink-0">
+            {/* SVG Ring Path Scale-up */}
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 112 112">
               <circle 
-                cx="28" cy="28" r="24"
+                cx="56" cy="56" r="48"
                 className="stroke-slate-850 fill-none" 
-                strokeWidth="3.5"
+                strokeWidth="5"
               />
               <circle 
-                cx="28" cy="28" r="24"
+                cx="56" cy="56" r="48"
                 className={`fill-none transition-all duration-1000 ${
                   timerSecondsLeft / timerDuration <= 0.2 ? "stroke-rose-500 animate-pulse" : "stroke-pink-500"
                 }`}
-                strokeWidth="3.5"
-                strokeDasharray="150"
-                strokeDashoffset={150 - (150 * timerSecondsLeft) / timerDuration}
+                strokeWidth="5"
+                strokeDasharray="301.4"
+                strokeDashoffset={301.4 - (301.4 * timerSecondsLeft) / timerDuration}
                 strokeLinecap="round"
               />
             </svg>
-            <span className="absolute text-xs font-mono font-black text-slate-100">
+            <span className="absolute text-2xl font-mono font-black text-slate-100 animate-pulse">
               {timerSecondsLeft}s
             </span>
           </div>
 
           {/* Timer details and controls */}
-          <div className="flex flex-col gap-1.5 text-left">
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] text-slate-500 font-bold">시간설정</span>
-              {[30, 60, 180].map((dur) => (
-                <button
-                  key={dur}
-                  onClick={() => {
-                    setTimerDuration(dur);
-                    setTimerSecondsLeft(dur);
-                    setTimerIsRunning(false);
-                  }}
-                  className={`px-1.5 py-0.5 rounded text-[9px] font-black border transition-all cursor-pointer ${
-                    timerDuration === dur 
-                      ? "bg-pink-500/20 border-pink-500/50 text-pink-400" 
-                      : "bg-slate-950/40 border-slate-850 text-slate-450 hover:text-slate-200"
-                  }`}
-                >
-                  {dur === 60 ? "1분" : dur === 180 ? "3분" : "30초"}
-                </button>
-              ))}
+          <div className="flex flex-col gap-3.5 text-left">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] text-slate-500 font-extrabold tracking-wider uppercase">제한 시간 설정</span>
+              <div className="flex items-center gap-1">
+                {[30, 60, 180].map((dur) => (
+                  <button
+                    key={dur}
+                    onClick={() => {
+                      setTimerDuration(dur);
+                      setTimerSecondsLeft(dur);
+                      setTimerIsRunning(false);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all cursor-pointer ${
+                      timerDuration === dur 
+                        ? "bg-pink-500/20 border-pink-500/50 text-pink-450" 
+                        : "bg-slate-950/60 border-slate-850 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {dur === 60 ? "1분" : dur === 180 ? "3분" : "30초"}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setTimerIsRunning(!timerIsRunning)}
-                className={`px-2.5 py-1 text-[10px] font-black rounded transition-all cursor-pointer flex-1 text-center border ${
+                className={`px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex-1 text-center border shadow-md ${
                   timerIsRunning 
                     ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-400" 
                     : "bg-pink-600 hover:bg-pink-500 border-pink-500 text-white"
@@ -1283,10 +1287,10 @@ export default function App() {
                   setTimerSecondsLeft(timerDuration);
                   setTimerIsRunning(false);
                 }}
-                className="p-1 rounded bg-slate-950 border border-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-250 transition-colors cursor-pointer"
+                className="p-2 rounded-xl bg-slate-950 border border-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                 title="초기화"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           </div>
