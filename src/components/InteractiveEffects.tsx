@@ -192,6 +192,65 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       };
     }, []);
 
+    useEffect(() => {
+      const handleGlobalMouseMove = (e: MouseEvent) => {
+        if (cursorTrailType === "none" || isFrozen) return;
+
+        const canvas = effectsCanvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        // Convert screen mouse coordinates into canvas pixels
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (x < 0 || x > rect.width || y < 0 || y > rect.height) return;
+
+        if (cursorTrailType === "star") {
+          starParticlesRef.current.push({
+            id: Math.random().toString(36).substring(7),
+            x,
+            y,
+            vx: (Math.random() - 0.5) * 1.5,
+            vy: (Math.random() - 0.5) * 1.5 - 0.5,
+            size: 4 + Math.random() * 6,
+            opacity: 1.0,
+            color: ["#facc15", "#38bdf8", "#f472b6", "#a7f3d0", "#ffffff"][Math.floor(Math.random() * 5)],
+            rot: Math.random() * Math.PI,
+            rotSpeed: (Math.random() - 0.5) * 0.1
+          });
+        } else if (cursorTrailType === "fire") {
+          for (let i = 0; i < 2; i++) {
+            fireParticlesRef.current.push({
+              x: x + (Math.random() - 0.5) * 6,
+              y: y + (Math.random() - 0.5) * 6,
+              vx: (Math.random() - 0.5) * 0.6,
+              vy: -1.2 - Math.random() * 1.5,
+              size: 10 + Math.random() * 8,
+              opacity: 1.0,
+              color: ["#f97316", "#ef4444", "#eab308"][Math.floor(Math.random() * 3)]
+            });
+          }
+        } else if (cursorTrailType === "bubble") {
+          if (Math.random() < 0.28) {
+            bubbleParticlesRef.current.push({
+              x,
+              y,
+              vx: (Math.random() - 0.5) * 1.2,
+              vy: -0.6 - Math.random() * 1.0,
+              radius: 4 + Math.random() * 8,
+              opacity: 0.85,
+              color: `hsla(${Math.random() * 360}, 90%, 75%, 0.6)`
+            });
+          }
+        }
+      };
+
+      window.addEventListener("mousemove", handleGlobalMouseMove);
+      return () => {
+        window.removeEventListener("mousemove", handleGlobalMouseMove);
+      };
+    }, [cursorTrailType, isFrozen]);
+
     const playAudioPreset = (presetType: string) => {
       if (!soundEnabled) return;
 
@@ -354,8 +413,11 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       const emojis = ["❤️", "💖", "👍", "👏", "🔥", "🎉", "🌟", "🎈", "🥰", "🤩"];
       const newParticles: EmojiReactionParticle[] = [];
       const count = 25 + Math.floor(Math.random() * 10);
-      const winW = window.innerWidth;
-      const winH = window.innerHeight;
+      
+      const canvas = effectsCanvasRef.current;
+      const rect = canvas ? canvas.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
+      const winW = rect.width;
+      const winH = rect.height;
 
       for (let i = 0; i < count; i++) {
         newParticles.push({
@@ -949,53 +1011,7 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       }
     };
 
-    const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (cursorTrailType === "none" || isFrozen) return;
 
-      const rect = effectsCanvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      if (cursorTrailType === "star") {
-        starParticlesRef.current.push({
-          id: Math.random().toString(36).substring(7),
-          x,
-          y,
-          vx: (Math.random() - 0.5) * 1.5,
-          vy: (Math.random() - 0.5) * 1.5 - 0.5,
-          size: 4 + Math.random() * 6,
-          opacity: 1.0,
-          color: ["#facc15", "#38bdf8", "#f472b6", "#a7f3d0", "#ffffff"][Math.floor(Math.random() * 5)],
-          rot: Math.random() * Math.PI,
-          rotSpeed: (Math.random() - 0.5) * 0.1
-        });
-      } else if (cursorTrailType === "fire") {
-        for (let i = 0; i < 2; i++) {
-          fireParticlesRef.current.push({
-            x: x + (Math.random() - 0.5) * 6,
-            y: y + (Math.random() - 0.5) * 6,
-            vx: (Math.random() - 0.5) * 0.6,
-            vy: -1.2 - Math.random() * 1.5,
-            size: 10 + Math.random() * 8,
-            opacity: 1.0,
-            color: ["#f97316", "#ef4444", "#eab308"][Math.floor(Math.random() * 3)]
-          });
-        }
-      } else if (cursorTrailType === "bubble") {
-        if (Math.random() < 0.28) {
-          bubbleParticlesRef.current.push({
-            x,
-            y,
-            vx: (Math.random() - 0.5) * 1.2,
-            vy: -0.6 - Math.random() * 1.0,
-            radius: 4 + Math.random() * 8,
-            opacity: 0.85,
-            color: `hsla(${Math.random() * 360}, 90%, 75%, 0.6)`
-          });
-        }
-      }
-    };
 
     const getPresetText = (type: string): string => {
       switch (type) {
@@ -1058,7 +1074,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         <canvas 
           ref={effectsCanvasRef} 
           onClick={handleCanvasClick}
-          onMouseMove={handleCanvasMouseMove}
           className="absolute inset-0 h-full w-full z-10 pointer-events-auto" 
         />
       </div>

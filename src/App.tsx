@@ -189,7 +189,8 @@ export default function App() {
     return () => cancelAnimationFrame(frameId);
   }, [isSpinning]);
 
-  const isPointerInteractive = isDrawing || currentStamp !== null || cursorTrailType !== "none" || isAreaZoomActive || showSpinner || showTimer;
+  const isDrawingCanvasInteractive = isAreaZoomActive || isDrawing || currentStamp !== null;
+  const isEffectsCanvasInteractive = cursorTrailType !== "none" || showSpinner || showTimer;
 
   // ⚙️ Dynamic Stamp Presets Store
   const [presetStamps, setPresetStamps] = useState<PresetStamp[]>([
@@ -676,7 +677,7 @@ export default function App() {
                   🎉 마법의 프레젠테이션 오버레이 보드
                 </span>
                 <h1 className="text-5xl lg:text-6xl font-black tracking-tight leading-[1.15] bg-gradient-to-r from-white via-indigo-100 to-pink-300 bg-clip-text text-transparent font-sans drop-shadow-2xl keep-all break-keep">
-                  스마트한 발표 도구의 기적, <br />
+                  스마트한 발표 도구 <br />
                   <span className="text-indigo-400">SlidePen Pro</span>
                 </h1>
                 <p className="text-slate-350 text-base lg:text-lg leading-relaxed">
@@ -1001,7 +1002,7 @@ export default function App() {
       )}
 
       {/* 3. Drawing Canvas Engine (CONTAINED AND CLIPPED inside fixed bounds for coordinate sync & no leaks) */}
-      <div className={`fixed top-10 bottom-28 left-0 right-0 overflow-hidden ${isPointerInteractive ? "pointer-events-auto" : "pointer-events-none"}`} style={{ zIndex: 30 }}>
+      <div className={`fixed top-10 bottom-28 left-0 right-0 overflow-hidden ${isDrawingCanvasInteractive ? "pointer-events-auto" : "pointer-events-none"}`} style={{ zIndex: 30 }}>
         <DrawingCanvas
           strokes={currentStrokes}
           setStrokes={setCurrentStrokes}
@@ -1024,7 +1025,7 @@ export default function App() {
       </div>
 
       {/* 4. Interactive Effects Component (CONTAINED AND CLIPPED inside fixed bounds for coordinate sync & no leaks) */}
-      <div className={`fixed top-10 bottom-28 left-0 right-0 overflow-hidden ${isPointerInteractive ? "pointer-events-auto" : "pointer-events-none"}`} style={{ zIndex: 35 }}>
+      <div className={`fixed top-10 bottom-28 left-0 right-0 overflow-hidden ${isEffectsCanvasInteractive ? "pointer-events-auto" : "pointer-events-none"}`} style={{ zIndex: 35 }}>
         <InteractiveEffects
           ref={effectsRef}
           stamps={currentStamps}
@@ -1166,10 +1167,10 @@ export default function App() {
                     return (
                       <div 
                         key={i}
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 origin-center text-[9px] font-black text-slate-900 pointer-events-none select-none tracking-tight"
+                        className="absolute top-1/2 left-1/2 origin-center text-[9px] font-black text-slate-900 pointer-events-none select-none tracking-tight text-center"
                         style={{
-                          transform: `rotate(${rot}deg) translate(55px) rotate(90deg)`,
-                          maxWidth: "40px",
+                          transform: `translate(-50%, -50%) rotate(${rot}deg) translate(48px) rotate(90deg)`,
+                          maxWidth: "36px",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap"
