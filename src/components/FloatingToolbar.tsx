@@ -867,6 +867,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   <ChevronRight className="h-4.5 w-4.5" />
                 </button>
               </div>
+              
+              {/* Keyboard arrow keys page movement instruction guide */}
+              <div className="hidden lg:flex items-center gap-1.5 h-11 bg-slate-950/40 rounded-xl px-3 border border-slate-900 text-slate-400 font-black text-xs whitespace-nowrap">
+                <span>페이지 이동:</span>
+                <kbd className="px-2 py-0.5 bg-slate-800 text-slate-100 rounded border border-slate-700 font-mono font-black shadow text-[10px]">◀</kbd>
+                <kbd className="px-2 py-0.5 bg-slate-800 text-slate-100 rounded border border-slate-700 font-mono font-black shadow text-[10px]">▶</kbd>
+                <span className="text-[11px] text-slate-500 font-bold ml-0.5">키보드 화살표</span>
+              </div>
             </>
           )}
 
