@@ -5,7 +5,7 @@ import { ShortcutHUD } from "./components/ShortcutHUD";
 import { InteractiveEffects, InteractiveEffectsRef, StampInstance } from "./components/InteractiveEffects";
 import { ScreenSharePresenter } from "./components/ScreenSharePresenter";
 import { PdfPresenter } from "./components/PdfPresenter";
-import { FileUp } from "lucide-react";
+import { FileUp, X } from "lucide-react";
 
 interface Stroke {
   id: string;
@@ -109,6 +109,85 @@ export default function App() {
       setEarthquakeActive(false);
     }, 1200); // Shake for 1.2 seconds
   };
+
+  // 🎡 Spinner Wheel States
+  const [showSpinner, setShowSpinner] = useState(false);
+  const [spinnerNames, setSpinnerNames] = useState<string>("홍길동, 이순신, 세종대왕, 신사임당, 김두한");
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [spinAngle, setSpinAngle] = useState(0);
+  const [winnerName, setWinnerName] = useState<string | null>(null);
+
+  // ⏱️ Countdown Timer States
+  const [showTimer, setShowTimer] = useState(false);
+  const [timerSecondsLeft, setTimerSecondsLeft] = useState(60);
+  const [timerDuration, setTimerDuration] = useState(60);
+  const [timerIsRunning, setTimerIsRunning] = useState(false);
+
+  // 1. Timer Countdown tick interval
+  useEffect(() => {
+    if (!timerIsRunning || timerSecondsLeft <= 0) {
+      if (timerSecondsLeft === 0 && timerIsRunning) {
+        setTimerIsRunning(false);
+        handleTriggerConfetti(); // Cheering on zero completion!
+      }
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setTimerSecondsLeft((prev) => {
+        const next = prev - 1;
+        // Last 5 seconds ticking audio
+        if (next <= 5 && next > 0) {
+          effectsRef.current?.playAudioPreset("focus");
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timerIsRunning, timerSecondsLeft]);
+
+  // 2. Spinner Wheel deceleration loop
+  useEffect(() => {
+    if (!isSpinning) return;
+
+    let currentVel = 32 + Math.random() * 15;
+    let currentAngle = spinAngle;
+    let frameId: number;
+
+    const namesArray = spinnerNames.split(",").map(n => n.trim()).filter(Boolean);
+    if (namesArray.length === 0) {
+      setIsSpinning(false);
+      return;
+    }
+
+    const update = () => {
+      currentVel *= 0.965; // physical damping friction
+      currentAngle += currentVel;
+      setSpinAngle(currentAngle);
+
+      if (currentVel < 0.1) {
+        setIsSpinning(false);
+        // Calculate winner index
+        const normalizedAngle = (currentAngle % 360);
+        const sliceAngle = 360 / namesArray.length;
+        const pointerAngle = (360 - normalizedAngle + 270) % 360;
+        const winIdx = Math.floor(pointerAngle / sliceAngle) % namesArray.length;
+        
+        const winner = namesArray[winIdx];
+        setWinnerName(winner);
+        
+        effectsRef.current?.playAudioPreset("ding");
+        handleTriggerConfetti();
+        return;
+      }
+
+      frameId = requestAnimationFrame(update);
+    };
+
+    frameId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(frameId);
+  }, [isSpinning]);
 
   // ⚙️ Dynamic Stamp Presets Store
   const [presetStamps, setPresetStamps] = useState<PresetStamp[]>([
@@ -936,6 +1015,9 @@ export default function App() {
           isAreaZoomActive={isAreaZoomActive}
           onAreaZoomSelected={handleAreaZoomSelected}
           autoFadeActive={autoFadeActive}
+          onDrawStart={(speed) => effectsRef.current?.startScribbleSound(speed)}
+          onDrawStop={() => effectsRef.current?.stopScribbleSound()}
+          onSnapSuccess={() => effectsRef.current?.playAudioPreset("ding")}
         />
       </div>
 
@@ -999,6 +1081,10 @@ export default function App() {
         triggerMeteorShower={handleTriggerMeteorShower}
         triggerScreenFreeze={handleTriggerScreenFreeze}
         triggerEarthquake={handleTriggerEarthquake}
+        showSpinner={showSpinner}
+        setShowSpinner={setShowSpinner}
+        showTimer={showTimer}
+        setShowTimer={setShowTimer}
       />
 
       {/* 6. Keys Shortcut Heads-Up Display (HUD) */}
@@ -1027,6 +1113,183 @@ export default function App() {
           <FileUp className="h-16 w-16 text-indigo-400 animate-bounce" />
           <h2 className="text-2xl font-bold tracking-tight">발표용 PDF 또는 슬라이드 이미지들을 여기에 떨어뜨려주세요</h2>
           <p className="text-sm text-indigo-300/80">로컬 브라우저 보안 메모리에서 안전하게 파싱됩니다.</p>
+        </div>
+      )}
+
+      {/* 🎡 10. Spinner Wheel Overlay Modal (Gamification) */}
+      {showSpinner && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-fade-in pointer-events-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-6 max-w-lg w-full relative">
+            <button 
+              onClick={() => {
+                setShowSpinner(false);
+                setWinnerName(null);
+              }}
+              className="absolute top-4 right-4 text-slate-500 hover:text-white cursor-pointer transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="text-center">
+              <h2 className="text-xl font-black text-slate-100 flex items-center justify-center gap-1.5">
+                🎡 랜덤 돌림판 추첨기
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">참가 후보 이름을 입력하고 돌림판을 돌려보세요!</p>
+            </div>
+
+            <div className="flex gap-6 items-center justify-center">
+              {/* Spinner Wheel Visual Area */}
+              <div className="relative w-56 h-56 flex-shrink-0 flex items-center justify-center">
+                {/* Arrow Pointer indicator at top */}
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-20 w-0 h-0 border-x-8 border-x-transparent border-t-[16px] border-t-pink-500 filter drop-shadow-md" />
+                
+                <div 
+                  className="w-full h-full rounded-full border-4 border-slate-950 shadow-2xl relative overflow-hidden transition-transform duration-75"
+                  style={{
+                    transform: `rotate(${spinAngle}deg)`,
+                    background: `conic-gradient(${
+                      spinnerNames.split(",").map(n => n.trim()).filter(Boolean).map((_name, i, arr) => {
+                        const colors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#a855f7", "#ec4899", "#14b8a6"];
+                        const color = colors[i % colors.length];
+                        const angle = 360 / arr.length;
+                        return `${color} ${i * angle}deg ${(i + 1) * angle}deg`;
+                      }).join(", ")
+                    })`
+                  }}
+                >
+                  {/* Overlay labels inside wheel slices */}
+                  {spinnerNames.split(",").map(n => n.trim()).filter(Boolean).map((name, i, arr) => {
+                    const angle = 360 / arr.length;
+                    const rot = i * angle + (angle / 2);
+                    return (
+                      <div 
+                        key={i}
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 origin-center text-[10px] font-black text-slate-900 pointer-events-none select-none tracking-tight"
+                        style={{
+                          transform: `rotate(${rot}deg) translate(70px) rotate(90deg)`,
+                          maxWidth: "50px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {name}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Center core lock */}
+                <div className="absolute w-8 h-8 rounded-full bg-slate-900 border-2 border-slate-700 z-10 shadow-lg" />
+              </div>
+
+              {/* Setting Names Input box */}
+              <div className="flex-1 flex flex-col gap-2">
+                <label className="text-[10px] text-slate-500 font-bold uppercase">후보자 목록 (쉼표 분리)</label>
+                <textarea
+                  value={spinnerNames}
+                  onChange={(e) => setSpinnerNames(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 outline-none h-40 resize-none focus:ring-1 focus:ring-pink-500 focus:border-pink-500 placeholder-slate-700"
+                  placeholder="홍길동, 이순신, 세종대왕..."
+                />
+              </div>
+            </div>
+
+            {/* Control Buttons */}
+            <div className="flex flex-col gap-2.5">
+              {winnerName && (
+                <div className="bg-pink-500/10 border border-pink-500/30 text-pink-450 rounded-xl py-2.5 text-center text-xs font-black animate-bounce">
+                  🎉 당첨자: <span className="underline underline-offset-4 text-white font-extrabold">{winnerName}</span>님!
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  setWinnerName(null);
+                  setIsSpinning(true);
+                }}
+                disabled={isSpinning}
+                className="w-full py-3 bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-400 hover:to-violet-400 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-pink-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>🎡 돌림판 돌리기 (Spin)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⏱️ 11. Floating Countdown Timer Widget (Gamification) */}
+      {showTimer && (
+        <div className="fixed top-14 right-4 z-50 bg-slate-900/90 border border-slate-800 rounded-2xl p-4.5 shadow-2xl flex items-center gap-4.5 select-none animate-fade-in backdrop-blur-md pointer-events-auto">
+          <div className="relative w-14 h-14 flex items-center justify-center flex-shrink-0">
+            {/* SVG Ring Path */}
+            <svg className="w-full h-full -rotate-90">
+              <circle 
+                cx="28" cy="28" r="24"
+                className="stroke-slate-850 fill-none" 
+                strokeWidth="3.5"
+              />
+              <circle 
+                cx="28" cy="28" r="24"
+                className={`fill-none transition-all duration-1000 ${
+                  timerSecondsLeft / timerDuration <= 0.2 ? "stroke-rose-500 animate-pulse" : "stroke-pink-500"
+                }`}
+                strokeWidth="3.5"
+                strokeDasharray="150"
+                strokeDashoffset={150 - (150 * timerSecondsLeft) / timerDuration}
+                strokeLinecap="round"
+              />
+            </svg>
+            <span className="absolute text-xs font-mono font-black text-slate-100">
+              {timerSecondsLeft}s
+            </span>
+          </div>
+
+          {/* Timer details and controls */}
+          <div className="flex flex-col gap-1.5 text-left">
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] text-slate-500 font-bold">시간설정</span>
+              {[30, 60, 180].map((dur) => (
+                <button
+                  key={dur}
+                  onClick={() => {
+                    setTimerDuration(dur);
+                    setTimerSecondsLeft(dur);
+                    setTimerIsRunning(false);
+                  }}
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-black border transition-all cursor-pointer ${
+                    timerDuration === dur 
+                      ? "bg-pink-500/20 border-pink-500/50 text-pink-400" 
+                      : "bg-slate-950/40 border-slate-850 text-slate-450 hover:text-slate-200"
+                  }`}
+                >
+                  {dur === 60 ? "1분" : dur === 180 ? "3분" : "30초"}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setTimerIsRunning(!timerIsRunning)}
+                className={`px-2.5 py-1 text-[10px] font-black rounded transition-all cursor-pointer flex-1 text-center border ${
+                  timerIsRunning 
+                    ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-400" 
+                    : "bg-pink-600 hover:bg-pink-500 border-pink-500 text-white"
+                }`}
+              >
+                {timerIsRunning ? "일시정지" : "시작 (Start)"}
+              </button>
+              <button
+                onClick={() => {
+                  setTimerSecondsLeft(timerDuration);
+                  setTimerIsRunning(false);
+                }}
+                className="p-1 rounded bg-slate-950 border border-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-250 transition-colors cursor-pointer"
+                title="초기화"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -6,8 +6,8 @@ export interface StampInstance {
   x: number;
   y: number;
   type: string; // "excellent" | "focus" | "correct" | "wrong" | "custom"
-  text?: string; // custom manually entered text
-  shape?: "badge" | "circle" | "bubble" | "star"; // shape styling
+  text?: string;
+  shape?: "badge" | "circle" | "bubble" | "star";
   createdAt: number;
 }
 
@@ -22,10 +22,11 @@ export interface InteractiveEffectsRef {
   triggerConfetti: () => void;
   playAudioPreset: (presetType: string) => void;
   playEmojiBurst: () => void;
-  setMagicTrailActive: (active: boolean) => void;
   setCursorTrailType: (type: "none" | "star" | "fire" | "bubble") => void;
   playMeteorShower: () => void;
   triggerScreenFreeze: () => void;
+  startScribbleSound: (speed: number) => void;
+  stopScribbleSound: () => void;
 }
 
 interface EmojiReactionParticle {
@@ -93,6 +94,23 @@ interface GlassShard {
   opacity: number;
 }
 
+interface SimulatedStamp {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  type: string;
+  text: string;
+  shape: "badge" | "circle" | "bubble" | "star";
+  scale: number;
+  targetScale: number;
+  scaleVel: number;
+  isDragging: boolean;
+  width: number;
+  height: number;
+}
+
 export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveEffectsProps>(
   ({ stamps, zoomLevel, zoomOffset, soundEnabled }, ref) => {
     const confettiCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -101,7 +119,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
     const myConfettiRef = useRef<any>(null);
     const animationFrameRef = useRef<number | null>(null);
 
-    // Particle registers (Ref-backed for performance)
     const emojiParticlesRef = useRef<EmojiReactionParticle[]>([]);
     const starParticlesRef = useRef<StarParticle[]>([]);
     const fireParticlesRef = useRef<FireParticle[]>([]);
@@ -109,13 +126,57 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
     const meteorParticlesRef = useRef<MeteorParticle[]>([]);
     const glassShardsRef = useRef<GlassShard[]>([]);
 
-    // State bindings
+    const localStampsRef = useRef<SimulatedStamp[]>([]);
+    const draggingStampIdRef = useRef<string | null>(null);
+    const dragOffsetRef = useRef({ x: 0, y: 0 });
+    const lastMousePosRef = useRef({ x: 0, y: 0 });
+
     const [cursorTrailType, setCursorTrailTypeState] = useState<"none" | "star" | "fire" | "bubble">("none");
     const [isFrozen, setIsFrozen] = useState(false);
     const [freezeAnimState, setFreezeAnimState] = useState<"none" | "freezing" | "frozen" | "shattering">("none");
     const [freezeProgress, setFreezeProgress] = useState(0);
 
-    // Setup custom confetti instance
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const scribbleSourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const scribbleGainRef = useRef<GainNode | null>(null);
+    const scribbleActiveRef = useRef<boolean>(false);
+
+    useEffect(() => {
+      if (stamps.length === 0) {
+        localStampsRef.current = [];
+        return;
+      }
+      
+      const currentIds = localStampsRef.current.map((s) => s.id);
+      stamps.forEach((parentStamp) => {
+        if (!currentIds.includes(parentStamp.id)) {
+          const textContent = parentStamp.type === "custom" ? (parentStamp.text || "메모") : getPresetText(parentStamp.type);
+          const textLen = textContent.length;
+          const w = parentStamp.shape === "circle" || parentStamp.shape === "star" ? 96 : Math.max(90, textLen * 14 + 30);
+          const h = parentStamp.shape === "circle" || parentStamp.shape === "star" ? 96 : 42;
+
+          localStampsRef.current.push({
+            id: parentStamp.id,
+            x: parentStamp.x,
+            y: parentStamp.y,
+            vx: 0,
+            vy: 0,
+            type: parentStamp.type,
+            text: textContent,
+            shape: parentStamp.shape || "badge",
+            scale: 0.05,
+            targetScale: 1.0,
+            scaleVel: 0,
+            isDragging: false,
+            width: w,
+            height: h
+          });
+
+          playAudioPreset("focus");
+        }
+      });
+    }, [stamps]);
+
     useEffect(() => {
       if (confettiCanvasRef.current) {
         myConfettiRef.current = confetti.create(confettiCanvasRef.current, {
@@ -123,16 +184,28 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
           useWorker: true
         });
       }
+      return () => {
+        stopScribbleSound();
+        if (audioCtxRef.current) {
+          audioCtxRef.current.close();
+        }
+      };
     }, []);
 
-    // Web Audio Synthesizer (Synth) for Instant zero-dependency sound effects
     const playAudioPreset = (presetType: string) => {
       if (!soundEnabled) return;
 
       try {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
         if (!AudioContextClass) return;
-        const ctx = new AudioContextClass();
+        
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new AudioContextClass();
+        }
+        const ctx = audioCtxRef.current;
+        if (ctx.state === "suspended") {
+          ctx.resume();
+        }
 
         const playTone = (freq: number, type: OscillatorType, duration: number, delay: number = 0) => {
           setTimeout(() => {
@@ -142,8 +215,7 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             osc.type = type;
             osc.frequency.setValueAtTime(freq, ctx.currentTime);
 
-            // Volume Envelope
-            gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+            gainNode.gain.setValueAtTime(0.12, ctx.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
 
             osc.connect(gainNode);
@@ -155,43 +227,106 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         };
 
         if (presetType === "ding") {
-          playTone(523.25, "sine", 0.3, 0);      // C5
-          playTone(659.25, "sine", 0.3, 0.08);   // E5
-          playTone(783.99, "sine", 0.3, 0.16);   // G5
-          playTone(1046.50, "sine", 0.5, 0.24);  // C6
+          playTone(523.25, "sine", 0.35, 0);
+          playTone(659.25, "sine", 0.35, 0.08);
+          playTone(783.99, "sine", 0.35, 0.16);
         } else if (presetType === "cheer") {
-          playTone(392.00, "triangle", 0.4, 0);   // G4
-          playTone(523.25, "triangle", 0.4, 0.1); // C5
-          playTone(659.25, "triangle", 0.4, 0.2); // E5
-          playTone(783.99, "triangle", 0.6, 0.3); // G5
-          
-          playTone(440.00, "sawtooth", 0.3, 0.05); // Support chord
-          playTone(554.37, "sawtooth", 0.3, 0.15);
-          playTone(698.46, "sawtooth", 0.5, 0.35);
+          playTone(392.00, "triangle", 0.4, 0);
+          playTone(523.25, "triangle", 0.4, 0.1);
+          playTone(659.25, "triangle", 0.4, 0.2);
+          playTone(783.99, "triangle", 0.6, 0.3);
         } else if (presetType === "focus") {
-          playTone(880.00, "sine", 0.15, 0);    // A5
-          playTone(880.00, "sine", 0.25, 0.18);   // A5
+          playTone(600, "sine", 0.15, 0);
         } else if (presetType === "buzzer") {
-          playTone(220.00, "sawtooth", 0.5, 0);   // A3
-          playTone(207.65, "sawtooth", 0.5, 0.08); // Ab3
+          playTone(180.00, "sawtooth", 0.6, 0);
+          playTone(170.00, "sawtooth", 0.6, 0.08);
         } else if (presetType === "bubble") {
-          playTone(587.33, "sine", 0.15, 0);     // D5
-          playTone(880.00, "sine", 0.2, 0.05);    // A5
-          playTone(1174.66, "sine", 0.25, 0.1);   // D6
+          playTone(587.33, "sine", 0.12, 0);
+          playTone(880.00, "sine", 0.15, 0.04);
+          playTone(1174.66, "sine", 0.2, 0.08);
         } else if (presetType === "freeze") {
-          // Low blowing wind/ice sweep
-          playTone(180, "triangle", 1.2, 0);
-          playTone(220, "sine", 1.5, 0.2);
-          playTone(330, "sine", 1.8, 0.4);
+          playTone(200, "sine", 1.4, 0);
+          playTone(300, "sine", 1.6, 0.2);
         } else if (presetType === "shatter") {
-          // High frequency cracking metallic noise
-          playTone(1200, "sawtooth", 0.1, 0);
-          playTone(900, "sawtooth", 0.15, 0.04);
-          playTone(700, "triangle", 0.2, 0.08);
-          playTone(150, "sawtooth", 0.4, 0.12); // low explosion thud
+          playTone(1300, "sawtooth", 0.08, 0);
+          playTone(950, "sawtooth", 0.12, 0.03);
+          playTone(180, "sawtooth", 0.4, 0.08);
         }
       } catch (err) {
         console.error("Audio Context failed to initialize:", err);
+      }
+    };
+
+    const initScribbleSynth = () => {
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextClass) return;
+
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new AudioContextClass();
+        }
+        const ctx = audioCtxRef.current;
+        if (ctx.state === "suspended") {
+          ctx.resume();
+        }
+
+        const bufferSize = ctx.sampleRate;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.random() * 2.0 - 1.0;
+        }
+
+        const source = ctx.createBufferSource();
+        source.buffer = noiseBuffer;
+        source.loop = true;
+
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = "bandpass";
+        bandpass.frequency.value = 1300;
+        bandpass.Q.value = 0.9;
+
+        const lowpass = ctx.createBiquadFilter();
+        lowpass.type = "lowpass";
+        lowpass.frequency.value = 3500;
+
+        const gainNode = ctx.createGain();
+        gainNode.gain.setValueAtTime(0, ctx.currentTime);
+
+        source.connect(bandpass);
+        bandpass.connect(lowpass);
+        lowpass.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        source.start(0);
+
+        scribbleSourceRef.current = source;
+        scribbleGainRef.current = gainNode;
+        scribbleActiveRef.current = true;
+      } catch (e) {
+        console.error("Pencil synth audio initialization failed:", e);
+      }
+    };
+
+    const startScribbleSound = (speed: number) => {
+      if (!soundEnabled) return;
+      if (!scribbleActiveRef.current) {
+        initScribbleSynth();
+      }
+
+      const gain = scribbleGainRef.current;
+      const ctx = audioCtxRef.current;
+      if (gain && ctx) {
+        const targetVol = Math.min(0.06, speed * 0.0025);
+        gain.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + 0.05);
+      }
+    };
+
+    const stopScribbleSound = () => {
+      const gain = scribbleGainRef.current;
+      const ctx = audioCtxRef.current;
+      if (gain && ctx) {
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.1);
       }
     };
 
@@ -239,18 +374,17 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       emojiParticlesRef.current = [...emojiParticlesRef.current, ...newParticles];
     };
 
-    // Meteor Shower Trigger
     const playMeteorShower = () => {
-      playAudioPreset("ding");
+      playAudioPreset("focus");
       const colors = ["#facc15", "#60a5fa", "#f472b6", "#a7f3d0", "#ffffff"];
       const newMeteors: MeteorParticle[] = [];
       const winW = window.innerWidth;
 
       for (let i = 0; i < 25; i++) {
         newMeteors.push({
-          x: Math.random() * (winW * 1.2) - (winW * 0.2), // start scattered
+          x: Math.random() * (winW * 1.2) - (winW * 0.2),
           y: -50 - Math.random() * 200,
-          vx: 8 + Math.random() * 6,     // slide down-right speed
+          vx: 8 + Math.random() * 6,
           vy: 6 + Math.random() * 5,
           len: 40 + Math.random() * 80,
           color: colors[Math.floor(Math.random() * colors.length)],
@@ -260,7 +394,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       meteorParticlesRef.current = [...meteorParticlesRef.current, ...newMeteors];
     };
 
-    // Screen Freezing Trigger
     const triggerScreenFreeze = () => {
       if (freezeAnimState !== "none") return;
       playAudioPreset("freeze");
@@ -269,7 +402,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       setFreezeProgress(0);
     };
 
-    // Screen Shattering Core Physics
     const triggerScreenShatter = (clickX: number, clickY: number) => {
       playAudioPreset("shatter");
       setFreezeAnimState("shattering");
@@ -279,7 +411,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       const w = canvas.width;
       const h = canvas.height;
 
-      // Slice screen viewport into small triangular pieces
       const rows = 9;
       const cols = 12;
       const shardW = w / cols;
@@ -291,30 +422,26 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
           const sx = c * shardW;
           const sy = r * shardH;
 
-          // Generate 2 triangular shards per grid block
           const p1 = { x: sx, y: sy };
           const p2 = { x: sx + shardW, y: sy };
           const p3 = { x: sx, y: sy + shardH };
           const p4 = { x: sx + shardW, y: sy + shardH };
 
-          // Shard 1
           const center1 = { x: sx + shardW/3, y: sy + shardH/3 };
           const dX1 = center1.x - clickX;
           const dY1 = center1.y - clickY;
           const dist1 = Math.sqrt(dX1*dX1 + dY1*dY1) || 1;
-
-          // Blast velocity vectors pushing outwards from click point
           const force1 = Math.max(1, 15 - dist1 * 0.015);
+
           newShards.push({
             points: [p1, p2, p3],
             vx: (dX1 / dist1) * force1 + (Math.random() - 0.5) * 3,
-            vy: (dY1 / dist1) * force1 - (2 + Math.random() * 3), // lift-off push
+            vy: (dY1 / dist1) * force1 - (2 + Math.random() * 3),
             rot: 0,
             rotSpeed: (Math.random() - 0.5) * 0.06,
             opacity: 1.0
           });
 
-          // Shard 2
           const center2 = { x: sx + (shardW*2)/3, y: sy + (shardH*2)/3 };
           const dX2 = center2.x - clickX;
           const dY2 = center2.y - clickY;
@@ -331,100 +458,92 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
           });
         }
       }
-
       glassShardsRef.current = newShards;
     };
 
-    // Global cursor trail generator on mousemove
     useEffect(() => {
-      if (cursorTrailType === "none") return;
+      const handleMouseDown = (e: MouseEvent) => {
+        if (isFrozen) return;
 
-      const handleMouseMove = (e: MouseEvent) => {
         const canvas = effectsCanvasRef.current;
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        if (cursorTrailType === "star") {
-          // 1. Star Trail
-          const newStars: StarParticle[] = [];
-          const colors = ["#facc15", "#fef08a", "#a7f3d0", "#bae6fd", "#fbcfe8"];
-          for (let i = 0; i < 2; i++) {
-            newStars.push({
-              id: Math.random().toString(36).substring(7),
-              x: mouseX,
-              y: mouseY,
-              vx: (Math.random() - 0.5) * 2.2,
-              vy: (Math.random() - 0.5) * 2.2,
-              size: 8 + Math.random() * 10,
-              opacity: 1.0,
-              color: colors[Math.floor(Math.random() * colors.length)],
-              rot: Math.random() * Math.PI,
-              rotSpeed: (Math.random() - 0.5) * 0.08
-            });
+        for (let i = localStampsRef.current.length - 1; i >= 0; i--) {
+          const s = localStampsRef.current[i];
+          const screenX = s.x * zoomLevel + zoomOffset.x;
+          const screenY = s.y * zoomLevel + zoomOffset.y;
+          const sWidth = s.width * zoomLevel;
+          const sHeight = s.height * zoomLevel;
+          const halfW = sWidth / 2;
+          const halfH = sHeight / 2;
+
+          if (
+            mouseX >= screenX - halfW && mouseX <= screenX + halfW &&
+            mouseY >= screenY - halfH && mouseY <= screenY + halfH
+          ) {
+            draggingStampIdRef.current = s.id;
+            s.isDragging = true;
+            dragOffsetRef.current = { 
+              x: (mouseX - zoomOffset.x)/zoomLevel - s.x, 
+              y: (mouseY - zoomOffset.y)/zoomLevel - s.y 
+            };
+            lastMousePosRef.current = { x: mouseX, y: mouseY };
+            s.vx = 0;
+            s.vy = 0;
+            break;
           }
-          starParticlesRef.current = [...starParticlesRef.current, ...newStars];
-        } else if (cursorTrailType === "fire") {
-          // 2. Fire Particle Trail
-          const newFire: FireParticle[] = [];
-          const colors = ["#ef4444", "#f97316", "#f59e0b", "#eab308"]; // red, orange, gold sparks
-          for (let i = 0; i < 3; i++) {
-            newFire.push({
-              x: mouseX,
-              y: mouseY,
-              vx: (Math.random() - 0.5) * 1.8,
-              vy: -1.2 - Math.random() * 2.5, // floats up
-              size: 10 + Math.random() * 12,
-              opacity: 1.0,
-              color: colors[Math.floor(Math.random() * colors.length)]
-            });
-          }
-          fireParticlesRef.current = [...fireParticlesRef.current, ...newFire];
-        } else if (cursorTrailType === "bubble") {
-          // 3. Bubble Particle Trail
-          const newBubbles: BubbleParticle[] = [];
-          const colors = ["rgba(167, 243, 208, 0.45)", "rgba(186, 230, 253, 0.45)", "rgba(251, 207, 232, 0.45)"];
-          for (let i = 0; i < 1; i++) {
-            if (Math.random() > 0.4) { // spawn rate control
-              newBubbles.push({
-                x: mouseX,
-                y: mouseY,
-                vx: (Math.random() - 0.5) * 1.0,
-                vy: -0.4 - Math.random() * 0.8, // floats up slowly
-                radius: 6 + Math.random() * 10,
-                opacity: 1.0,
-                color: colors[Math.floor(Math.random() * colors.length)]
-              });
-            }
-          }
-          bubbleParticlesRef.current = [...bubbleParticlesRef.current, ...newBubbles];
         }
       };
 
-      window.addEventListener("mousemove", handleMouseMove);
-      return () => window.removeEventListener("mousemove", handleMouseMove);
-    }, [cursorTrailType]);
+      const handleMouseMove = (e: MouseEvent) => {
+        if (isFrozen || !draggingStampIdRef.current) return;
 
-    // Handle screen resizing
-    useEffect(() => {
-      const canvas = effectsCanvasRef.current;
-      if (!canvas) return;
+        const canvas = effectsCanvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
 
-      const handleResize = () => {
-        const parent = canvas.parentElement;
-        if (!parent) return;
-        const rect = parent.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
+        const s = localStampsRef.current.find((stamp) => stamp.id === draggingStampIdRef.current);
+        if (s) {
+          s.x = (mouseX - zoomOffset.x)/zoomLevel - dragOffsetRef.current.x;
+          s.y = (mouseY - zoomOffset.y)/zoomLevel - dragOffsetRef.current.y;
+
+          s.vx = (mouseX - lastMousePosRef.current.x) / zoomLevel;
+          s.vy = (mouseY - lastMousePosRef.current.y) / zoomLevel;
+          
+          lastMousePosRef.current = { x: mouseX, y: mouseY };
+        }
       };
 
-      handleResize();
-      window.addEventListener("resize", handleResize);
-      return () => window.removeEventListener("resize", handleResize);
-    }, []);
+      const handleMouseUp = () => {
+        if (draggingStampIdRef.current) {
+          const s = localStampsRef.current.find((stamp) => stamp.id === draggingStampIdRef.current);
+          if (s) {
+            s.isDragging = false;
+            const speedSq = s.vx * s.vx + s.vy * s.vy;
+            if (speedSq > 30) {
+              playAudioPreset("bubble");
+            }
+          }
+          draggingStampIdRef.current = null;
+        }
+      };
 
-    // Main 60fps Canvas render loop
+      window.addEventListener("mousedown", handleMouseDown);
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+
+      return () => {
+        window.removeEventListener("mousedown", handleMouseDown);
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+    }, [isFrozen, zoomLevel, zoomOffset]);
+
     useEffect(() => {
       const canvas = effectsCanvasRef.current;
       if (!canvas) return;
@@ -458,10 +577,85 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         c.restore();
       };
 
+      const drawCanvasStamp = (c: CanvasRenderingContext2D, s: SimulatedStamp) => {
+        const halfW = s.width / 2;
+        const halfH = s.height / 2;
+
+        c.save();
+        const screenX = s.x * zoomLevel + zoomOffset.x;
+        const screenY = s.y * zoomLevel + zoomOffset.y;
+        const finalScale = s.scale * zoomLevel;
+
+        c.translate(screenX, screenY);
+        c.scale(finalScale, finalScale);
+        
+        const grad = c.createLinearGradient(-halfW, -halfH, halfW, halfH);
+        const presetColors = getColorPreset(s.type);
+        grad.addColorStop(0, presetColors.c1);
+        grad.addColorStop(1, presetColors.c2);
+
+        if (s.shape === "circle") {
+          c.beginPath();
+          c.arc(0, 0, halfW, 0, Math.PI * 2);
+          c.fillStyle = grad;
+          c.fill();
+          c.strokeStyle = "#ffffff";
+          c.lineWidth = 2.5;
+          c.stroke();
+          
+          c.fillStyle = presetColors.textCol;
+          c.font = "bold 13px sans-serif";
+          c.textAlign = "center";
+          c.textBaseline = "middle";
+          c.fillText(s.text, 0, 0);
+        } else if (s.shape === "star") {
+          drawStar(c, 0, 0, 5, halfW, halfW * 0.45, "#fbbf24", 0);
+          c.fillStyle = "#1e293b";
+          c.font = "bold 10px sans-serif";
+          c.textAlign = "center";
+          c.textBaseline = "middle";
+          c.fillText(s.text.replace("👍 ", "").replace("👀 ", "").replace("🎉 ", "").replace("⚠️ ", ""), 0, 0);
+        } else if (s.shape === "bubble") {
+          c.beginPath();
+          c.roundRect(-halfW, -halfH, s.width, s.height, 14);
+          c.moveTo(-6, halfH);
+          c.lineTo(0, halfH + 8);
+          c.lineTo(6, halfH);
+          c.closePath();
+          
+          c.fillStyle = grad;
+          c.fill();
+          c.strokeStyle = "#ffffff";
+          c.lineWidth = 2.5;
+          c.stroke();
+
+          c.fillStyle = presetColors.textCol;
+          c.font = "bold 13px sans-serif";
+          c.textAlign = "center";
+          c.textBaseline = "middle";
+          c.fillText(s.text, 0, 0);
+        } else {
+          c.beginPath();
+          c.roundRect(-halfW, -halfH, s.width, s.height, 14);
+          c.fillStyle = grad;
+          c.fill();
+          c.strokeStyle = "#ffffff";
+          c.lineWidth = 2.5;
+          c.stroke();
+
+          c.fillStyle = presetColors.textCol;
+          c.font = "bold 13px sans-serif";
+          c.textAlign = "center";
+          c.textBaseline = "middle";
+          c.fillText(s.text, 0, 0);
+        }
+
+        c.restore();
+      };
+
       const loop = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // A. SCENE EFFECT: FREEZING LAYER
         if (isFrozen) {
           if (freezeAnimState === "freezing") {
             setFreezeProgress((p) => {
@@ -475,12 +669,10 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
           }
 
           if (freezeAnimState !== "shattering") {
-            // Draw frosted blue texture filter
             ctx.save();
-            ctx.fillStyle = `rgba(186, 230, 253, ${freezeProgress * 0.35})`; // frost overlay
+            ctx.fillStyle = `rgba(186, 230, 253, ${freezeProgress * 0.35})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw frosted vignette edge
             const grad = ctx.createRadialGradient(
               canvas.width/2, canvas.height/2, canvas.height/4,
               canvas.width/2, canvas.height/2, canvas.width/2
@@ -490,7 +682,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Frosted border frame
             ctx.strokeStyle = `rgba(255, 255, 255, ${freezeProgress * 0.8})`;
             ctx.lineWidth = 14 * freezeProgress;
             ctx.strokeRect(0, 0, canvas.width, canvas.height);
@@ -498,19 +689,16 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
           }
         }
 
-        // B. SCENE EFFECT: GLASS SHATTER PHYSICS
         if (freezeAnimState === "shattering") {
           const activeShards: GlassShard[] = [];
           ctx.save();
 
           glassShardsRef.current.forEach((shard) => {
-            // physics calculation
-            shard.vx *= 0.98; // friction
-            shard.vy += 0.42; // gravity fall
+            shard.vx *= 0.98;
+            shard.vy += 0.42;
             shard.rot += shard.rotSpeed;
-            shard.opacity -= 0.015; // slow disappear
+            shard.opacity -= 0.015;
 
-            // Calculate barycenter
             let cx = 0;
             let cy = 0;
             shard.points.forEach((p) => {
@@ -526,7 +714,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
               ctx.translate(cx, cy);
               ctx.rotate(shard.rot);
 
-              // frosted color
               ctx.fillStyle = "rgba(191, 219, 254, 0.4)";
               ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
               ctx.lineWidth = 1.2;
@@ -549,14 +736,48 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
           glassShardsRef.current = activeShards;
 
           if (activeShards.length === 0) {
-            // Completed shattering phase
             setIsFrozen(false);
             setFreezeAnimState("none");
             setFreezeProgress(0);
           }
         }
 
-        // 1. EMOJI BURST
+        if (!isFrozen) {
+          const activeStamps: SimulatedStamp[] = [];
+          
+          localStampsRef.current.forEach((s) => {
+            if (s.scale !== s.targetScale) {
+              const springStiffness = 0.16;
+              const springDamping = 0.78;
+              const force = (s.targetScale - s.scale) * springStiffness;
+              s.scaleVel = (s.scaleVel + force) * springDamping;
+              s.scale += s.scaleVel;
+              if (Math.abs(s.scale - s.targetScale) < 0.001 && Math.abs(s.scaleVel) < 0.001) {
+                s.scale = s.targetScale;
+              }
+            }
+
+            if (!s.isDragging) {
+              s.x += s.vx;
+              s.y += s.vy;
+              s.vx *= 0.92;
+              s.vy *= 0.92;
+            }
+
+            const margin = 120;
+            const isOffScreen = 
+              s.x < -margin || s.x > canvas.width/zoomLevel + margin ||
+              s.y < -margin || s.y > canvas.height/zoomLevel + margin;
+
+            if (!isOffScreen) {
+              drawCanvasStamp(ctx, s);
+              activeStamps.push(s);
+            }
+          });
+
+          localStampsRef.current = activeStamps;
+        }
+
         const activeEmojis: EmojiReactionParticle[] = [];
         emojiParticlesRef.current.forEach((p) => {
           p.x += p.vx;
@@ -580,7 +801,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         });
         emojiParticlesRef.current = activeEmojis;
 
-        // 2. STAR CURSOR TRAILS
         const activeStars: StarParticle[] = [];
         starParticlesRef.current.forEach((s) => {
           s.x += s.vx;
@@ -599,7 +819,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         });
         starParticlesRef.current = activeStars;
 
-        // 3. FIRE CURSOR TRAILS
         const activeFire: FireParticle[] = [];
         fireParticlesRef.current.forEach((f) => {
           f.x += f.vx;
@@ -611,11 +830,10 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             ctx.save();
             ctx.globalAlpha = f.opacity;
             
-            // Draw soft round flames
             const radGrad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.size);
             radGrad.addColorStop(0, f.color);
             radGrad.addColorStop(0.3, f.color);
-            radGrad.addColorStop(1, "rgba(239, 68, 68, 0)"); // fade border
+            radGrad.addColorStop(1, "rgba(239, 68, 68, 0)");
 
             ctx.fillStyle = radGrad;
             ctx.beginPath();
@@ -628,7 +846,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         });
         fireParticlesRef.current = activeFire;
 
-        // 4. BUBBLE CURSOR TRAILS
         const activeBubbles: BubbleParticle[] = [];
         bubbleParticlesRef.current.forEach((b) => {
           b.x += b.vx;
@@ -644,7 +861,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
             ctx.stroke();
 
-            // highlight reflection shine
             ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
             ctx.beginPath();
             ctx.arc(b.x - b.radius * 0.3, b.y - b.radius * 0.3, b.radius * 0.15, 0, Math.PI * 2);
@@ -656,19 +872,17 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         });
         bubbleParticlesRef.current = activeBubbles;
 
-        // 5. METEOR SHOWER OVERLAY
         const activeMeteors: MeteorParticle[] = [];
         meteorParticlesRef.current.forEach((m) => {
           m.x += m.vx;
           m.y += m.vy;
-          m.opacity -= 0.008; // slow fade
+          m.opacity -= 0.008;
 
           if (m.opacity > 0 && m.y < canvas.height + 100 && m.x < canvas.width + 100) {
             ctx.save();
             ctx.globalAlpha = m.opacity;
             ctx.lineWidth = 2.0;
 
-            // Draw streak tail gradient
             const headX = m.x;
             const headY = m.y;
             const tailX = m.x - m.vx * 3;
@@ -684,7 +898,6 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             ctx.lineTo(tailX, tailY);
             ctx.stroke();
 
-            // Tiny sparkle head
             ctx.fillStyle = "#ffffff";
             ctx.beginPath();
             ctx.arc(headX, headY, 1.8, 0, Math.PI * 2);
@@ -706,9 +919,8 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
           cancelAnimationFrame(animationFrameRef.current);
         }
       };
-    }, [isFrozen, freezeAnimState, freezeProgress]);
+    }, [isFrozen, freezeAnimState, freezeProgress, zoomLevel, zoomOffset]);
 
-    // Handle canvas click during freeze (triggers shatter crack)
     const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (isFrozen && freezeAnimState === "frozen") {
         const rect = effectsCanvasRef.current?.getBoundingClientRect();
@@ -720,78 +932,52 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       }
     };
 
-    // Expose methods to parent App
-    useImperativeHandle(ref, () => ({
-      triggerConfetti,
-      playAudioPreset,
-      playEmojiBurst,
-      setCursorTrailType: (type: "none" | "star" | "fire" | "bubble") => {
-        setCursorTrailTypeState(type);
-        // flush other arrays to prevent carryover
-        starParticlesRef.current = [];
-        fireParticlesRef.current = [];
-        bubbleParticlesRef.current = [];
-      },
-      setMagicTrailActive: (active: boolean) => {
-        setCursorTrailTypeState(active ? "star" : "none");
-        starParticlesRef.current = [];
-      },
-      playMeteorShower,
-      triggerScreenFreeze
-    }));
+    const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (cursorTrailType === "none" || isFrozen) return;
 
-    // Rendering Stamp SVGs based on shapes and types
-    const renderStampContent = (stamp: StampInstance) => {
-      const textContent = stamp.type === "custom" ? (stamp.text || "메모") : getPresetText(stamp.type);
-      const colorScheme = getColorPreset(stamp.type);
-      const shapeType = stamp.shape || "badge";
+      const rect = effectsCanvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
 
-      // 1. Special case: Star Shape (using custom SVG scaling for absolute centering)
-      if (shapeType === "star") {
-        return (
-          <div className="relative w-28 h-28 flex items-center justify-center select-none pointer-events-none drop-shadow-xl animate-stamp-slam">
-            <svg className="absolute inset-0 w-full h-full text-amber-400 stroke-amber-500 stroke-2" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 .587l3.668 7.431 8.2 1.191-5.934 5.787 1.4 8.168L12 18.896l-7.334 3.857 1.4-8.168L.132 9.209l8.2-1.191L12 .587z" />
-            </svg>
-            <div className="z-10 flex flex-col items-center justify-center text-center p-2 text-slate-950 font-extrabold max-w-[70%] leading-tight text-xs">
-              <span>{textContent}</span>
-            </div>
-          </div>
-        );
+      if (cursorTrailType === "star") {
+        starParticlesRef.current.push({
+          id: Math.random().toString(36).substring(7),
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: (Math.random() - 0.5) * 1.5 - 0.5,
+          size: 4 + Math.random() * 6,
+          opacity: 1.0,
+          color: ["#facc15", "#38bdf8", "#f472b6", "#a7f3d0", "#ffffff"][Math.floor(Math.random() * 5)],
+          rot: Math.random() * Math.PI,
+          rotSpeed: (Math.random() - 0.5) * 0.1
+        });
+      } else if (cursorTrailType === "fire") {
+        for (let i = 0; i < 2; i++) {
+          fireParticlesRef.current.push({
+            x: x + (Math.random() - 0.5) * 6,
+            y: y + (Math.random() - 0.5) * 6,
+            vx: (Math.random() - 0.5) * 0.6,
+            vy: -1.2 - Math.random() * 1.5,
+            size: 10 + Math.random() * 8,
+            opacity: 1.0,
+            color: ["#f97316", "#ef4444", "#eab308"][Math.floor(Math.random() * 3)]
+          });
+        }
+      } else if (cursorTrailType === "bubble") {
+        if (Math.random() < 0.28) {
+          bubbleParticlesRef.current.push({
+            x,
+            y,
+            vx: (Math.random() - 0.5) * 1.2,
+            vy: -0.6 - Math.random() * 1.0,
+            radius: 4 + Math.random() * 8,
+            opacity: 0.85,
+            color: `hsla(${Math.random() * 360}, 90%, 75%, 0.6)`
+          });
+        }
       }
-
-      // 2. Bubble Shape (Speech Bubble with tail)
-      if (shapeType === "bubble") {
-        return (
-          <div 
-            className={`flex flex-col items-center justify-center rounded-2xl px-5 py-3 shadow-xl border-2 border-white text-white select-none pointer-events-none relative ${colorScheme.gradient} after:absolute after:top-full after:left-1/2 after:-translate-x-1/2 after:w-0 after:h-0 after:border-x-8 after:border-x-transparent after:border-t-8 ${colorScheme.tailColor}`}
-          >
-            <span className="text-sm md:text-base font-extrabold tracking-wide font-sans whitespace-nowrap">
-              {textContent}
-            </span>
-          </div>
-        );
-      }
-
-      // 3. Circle Shape
-      if (shapeType === "circle") {
-        return (
-          <div className={`flex flex-col items-center justify-center rounded-full aspect-square w-24 h-24 p-3 shadow-xl border-2 border-white text-white text-center select-none pointer-events-none ${colorScheme.gradient}`}>
-            <span className="text-xs md:text-sm font-extrabold leading-tight break-all font-sans">
-              {textContent}
-            </span>
-          </div>
-        );
-      }
-
-      // 4. Default Badge Shape
-      return (
-        <div className={`flex flex-col items-center justify-center rounded-2xl px-5 py-2.5 shadow-xl border-2 border-white text-white select-none pointer-events-none ${colorScheme.gradient}`}>
-          <span className="text-sm md:text-base font-extrabold tracking-wide font-sans whitespace-nowrap">
-            {textContent}
-          </span>
-        </div>
-      );
     };
 
     const getPresetText = (type: string): string => {
@@ -812,33 +998,38 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
     const getColorPreset = (type: string) => {
       switch (type) {
         case "excellent":
-          return {
-            gradient: "bg-gradient-to-br from-yellow-400 to-amber-500 text-slate-900",
-            tailColor: "after:border-t-amber-500"
-          };
+          return { c1: "#f59e0b", c2: "#d97706", textCol: "#1e293b" };
         case "focus":
-          return {
-            gradient: "bg-gradient-to-br from-indigo-500 to-blue-600 text-white",
-            tailColor: "after:border-t-blue-600"
-          };
+          return { c1: "#6366f1", c2: "#4f46e5", textCol: "#ffffff" };
         case "correct":
-          return {
-            gradient: "bg-gradient-to-br from-pink-500 to-rose-600 text-white",
-            tailColor: "after:border-t-rose-600"
-          };
+          return { c1: "#ec4899", c2: "#db2777", textCol: "#ffffff" };
         case "wrong":
-          return {
-            gradient: "bg-gradient-to-br from-amber-500 to-orange-600 text-white",
-            tailColor: "after:border-t-orange-600"
-          };
+          return { c1: "#f97316", c2: "#ea580c", textCol: "#ffffff" };
         case "custom":
         default:
-          return {
-            gradient: "bg-gradient-to-br from-fuchsia-500 to-indigo-600 text-white",
-            tailColor: "after:border-t-indigo-600"
-          };
+          return { c1: "#a855f7", c2: "#7c3aed", textCol: "#ffffff" };
       }
     };
+
+    useImperativeHandle(ref, () => ({
+      triggerConfetti,
+      playAudioPreset,
+      playEmojiBurst,
+      setCursorTrailType: (type: "none" | "star" | "fire" | "bubble") => {
+        setCursorTrailTypeState(type);
+        starParticlesRef.current = [];
+        fireParticlesRef.current = [];
+        bubbleParticlesRef.current = [];
+      },
+      setMagicTrailActive: (active: boolean) => {
+        setCursorTrailTypeState(active ? "star" : "none");
+        starParticlesRef.current = [];
+      },
+      playMeteorShower,
+      triggerScreenFreeze,
+      startScribbleSound,
+      stopScribbleSound
+    }));
 
     return (
       <div 
@@ -849,39 +1040,14 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         }`} 
         style={{ zIndex: 35 }}
       >
-        {/* Fullscreen Confetti Canvas Overlay */}
         <canvas ref={confettiCanvasRef} className="absolute inset-0 h-full w-full pointer-events-none" />
 
-        {/* 60fps Custom Interaction Canvas (Shatter, Emoji, Star, Fire, Bubble, Meteor) */}
         <canvas 
           ref={effectsCanvasRef} 
           onClick={handleCanvasClick}
-          className={`absolute inset-0 h-full w-full z-10 ${
-            isFrozen && freezeAnimState === "frozen" ? "pointer-events-auto" : "pointer-events-none"
-          }`} 
+          onMouseMove={handleCanvasMouseMove}
+          className="absolute inset-0 h-full w-full z-10 pointer-events-auto" 
         />
-
-        {/* Stamps Overlay under Zoom & Coordinate matrix */}
-        <div
-          className="absolute inset-0 h-full w-full pointer-events-none"
-          style={{
-            transform: `translate(${zoomOffset.x}px, ${zoomOffset.y}px) scale(${zoomLevel})`,
-            transformOrigin: "0 0"
-          }}
-        >
-          {stamps.map((stamp) => (
-            <div
-              key={stamp.id}
-              className="absolute -translate-x-1/2 -translate-y-1/2 animate-stamp-slam origin-center"
-              style={{
-                left: stamp.x,
-                top: stamp.y
-              }}
-            >
-              {renderStampContent(stamp)}
-            </div>
-          ))}
-        </div>
       </div>
     );
   }

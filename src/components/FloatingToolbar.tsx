@@ -82,6 +82,11 @@ interface FloatingToolbarProps {
   triggerMeteorShower: () => void;
   triggerScreenFreeze: () => void;
   triggerEarthquake: () => void;
+  // 🎡 Gamification spinner/timer hooks
+  showSpinner: boolean;
+  setShowSpinner: (val: boolean) => void;
+  showTimer: boolean;
+  setShowTimer: (val: boolean) => void;
 }
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
@@ -131,7 +136,11 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   triggerEmojiBurst,
   triggerMeteorShower,
   triggerScreenFreeze,
-  triggerEarthquake
+  triggerEarthquake,
+  showSpinner,
+  setShowSpinner,
+  showTimer,
+  setShowTimer
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showStickerPanel, setShowStickerPanel] = useState(false); // Sticker Popover
@@ -461,7 +470,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         </div>
       )}
 
-      {/* 0.3 High-Quality Tabbed Effects Chooser Popover Panel (Zero width expansion, 7 spectacular effects!) */}
+      {/* 0.3 High-Quality Tabbed Effects Chooser Popover Panel */}
       {mode === "fun" && showEffectsPanel && !isCollapsed && (
         <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800/80 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 z-50 w-[270px] backdrop-blur-md animate-fade-in text-left">
           
@@ -539,7 +548,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
             </div>
           )}
 
-          {/* TAB 2: Screen-wide Scene Impact Effects (Awesome differential features) */}
+          {/* TAB 2: Screen-wide Scene Impact Effects */}
           {effectsTab === "scenes" && (
             <div className="flex flex-col gap-2.5 animate-fade-in">
               <button
@@ -780,7 +789,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 <span>⚙️ 스티커</span>
               </button>
 
-              {/* ✨ Compact Effects selector popover trigger button (Tabbed for 7 effects) */}
+              {/* ✨ Compact Effects selector popover trigger button */}
               <button
                 onClick={() => {
                   setShowEffectsPanel(!showEffectsPanel);
@@ -924,6 +933,38 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* 🎡 Spinner Wheel Toggle Button (Gamification) */}
+            <button
+              onClick={() => {
+                setShowSpinner(!showSpinner);
+                setShowTimer(false); // close timer to avoid overlap
+              }}
+              className={`h-8.5 rounded-md px-2 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                showSpinner
+                  ? "bg-pink-500/20 border-pink-500/50 text-pink-400 font-bold shadow-md shadow-pink-500/10"
+                  : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+              }`}
+              title="랜덤 추첨용 돌림판(스피너 휠) 열기"
+            >
+              🎡 돌림판
+            </button>
+
+            {/* ⏱️ Floating Timer Toggle Button (Gamification) */}
+            <button
+              onClick={() => {
+                setShowTimer(!showTimer);
+                setShowSpinner(false); // close spinner to avoid overlap
+              }}
+              className={`h-8.5 rounded-md px-2 text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                showTimer
+                  ? "bg-pink-500/20 border-pink-500/50 text-pink-400 font-bold shadow-md shadow-pink-500/10"
+                  : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+              }`}
+              title="카운트다운 플로팅 타이머 위젯 열기"
+            >
+              ⏱️ 타이머
+            </button>
+
             <button
               onClick={clearCanvas}
               className="h-8.5 rounded-md p-2 bg-rose-600 hover:bg-rose-500 text-white border border-rose-500/80 shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center justify-center"

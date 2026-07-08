@@ -12,7 +12,7 @@ interface Stroke {
   width: number;
   type: "free" | "line" | "rect";
   createdAt: number;
-  opacity: number; // 0.0 to 1.0 for auto-fade
+  opacity: number;
   isFading: boolean;
 }
 
@@ -28,11 +28,13 @@ interface DrawingCanvasProps {
   zoomOffset: { x: number; y: number };
   currentStamp: string | null;
   onStampPlaced: (x: number, y: number, stampType: string) => void;
-  // Area crop zoom triggers
   isAreaZoomActive: boolean;
   onAreaZoomSelected: (start: Point, end: Point) => void;
-  // Auto fade toggle option
   autoFadeActive: boolean;
+  // 🔊 pencil synth sound hook & snapping chime callbacks
+  onDrawStart: (speed: number) => void;
+  onDrawStop: () => void;
+  onSnapSuccess: () => void;
 }
 
 export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
@@ -49,17 +51,19 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   onStampPlaced,
   isAreaZoomActive,
   onAreaZoomSelected,
-  autoFadeActive
+  autoFadeActive,
+  onDrawStart,
+  onDrawStop,
+  onSnapSuccess
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
   const [isMouseActive, setIsMouseActive] = useState(false);
 
-  // Area Zoom Box Selection States (PURE viewport coordinates, independent of Zoom)
   const [areaZoomStart, setAreaZoomStart] = useState<Point | null>(null);
   const [areaZoomCurrent, setAreaZoomCurrent] = useState<Point | null>(null);
 
-  // Handle Resize and Device Pixel Ratio for Razor Sharp lines
+  // Resize canvas to match parent with DPR scaling
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -85,10 +89,10 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Contextual Auto-Fade Engine (Now unified and controlled by autoFadeActive prop!)
+  // Unified Auto-Fade loop
   useEffect(() => {
     const fadeInterval = setInterval(() => {
-      if (!autoFadeActive) return; // Do not fade if toggle is OFF
+      if (!autoFadeActive) return;
 
       const now = Date.now();
       setStrokes((prevStrokes) => {
@@ -96,7 +100,7 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
         const nextStrokes = prevStrokes.map((stroke) => {
           const age = now - stroke.createdAt;
           if (age > 2000) {
-            const remaining = Math.max(0, 1 - (age - 2000) / 800); // fade out over 800ms
+            const remaining = Math.max(0, 1 - (age - 2000) / 800);
             if (remaining !== stroke.opacity) {
               changed = true;
               return {
@@ -119,24 +123,19 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     return () => clearInterval(fadeInterval);
   }, [autoFadeActive]);
 
-  // Coordinate conversion helper (Screen Space to Canvas Space under Zoom)
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    
-    // Screen X, Y coordinates
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
-    // Convert under Zoom and Pan Matrix
     const canvasX = (screenX - zoomOffset.x) / zoomLevel;
     const canvasY = (screenY - zoomOffset.y) / zoomLevel;
 
     return { x: canvasX, y: canvasY };
   };
 
-  // Viewport relative coordinate extractor for Drag Area Zoom (NO zoom matrix calculation)
   const getViewportCoords = (e: React.MouseEvent<HTMLCanvasElement>): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -147,20 +146,18 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     };
   };
 
-  // Main Canvas Render Loop
+  // Render loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Clear with transparent
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // DRAW AREA ZOOM SELECTION BOX BEFORE MATRIX TRANSFORMATION (Rendered in screen space overlay)
     if (isAreaZoomActive && areaZoomStart && areaZoomCurrent) {
       ctx.save();
-      ctx.strokeStyle = "#eab308"; // yellow-500
+      ctx.strokeStyle = "#eab308";
       ctx.lineWidth = 2.5;
       ctx.setLineDash([6, 4]);
       
@@ -176,14 +173,10 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       ctx.restore();
     }
 
-    // DRAW DRAWING STROKES INSIDE ZOOM MATRIX
     ctx.save();
-    
-    // Zoom coordination system transformation
     ctx.translate(zoomOffset.x, zoomOffset.y);
     ctx.scale(zoomLevel, zoomLevel);
 
-    // Calculate dynamic 16:9 Presentation slide boundaries in Canvas Space to apply ctx.clip()
     const containerWidth = canvas.width / (window.devicePixelRatio || 1);
     const containerHeight = canvas.height / (window.devicePixelRatio || 1);
     const slideRatio = 16 / 9;
@@ -194,21 +187,17 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     let slideY = 0;
 
     if (containerWidth / containerHeight > slideRatio) {
-      // Container is wider than 16:9 -> slide matches height, margins on left/right
       slideW = containerHeight * slideRatio;
       slideX = (containerWidth - slideW) / 2;
     } else {
-      // Container is taller than 16:9 -> slide matches width, margins on top/bottom
       slideH = containerWidth / slideRatio;
       slideY = (containerHeight - slideH) / 2;
     }
 
-    // Apply strict slide clipping boundary to avoid lines drawing outside the presentation slides
     ctx.beginPath();
     ctx.rect(slideX, slideY, slideW, slideH);
     ctx.clip();
 
-    // Draw past strokes
     strokes.forEach((stroke) => {
       ctx.globalAlpha = stroke.opacity;
       ctx.strokeStyle = stroke.color;
@@ -243,7 +232,6 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       }
     });
 
-    // Draw current active stroke
     if (isMouseActive && currentPoints.length > 0) {
       ctx.globalAlpha = 1.0;
       ctx.strokeStyle = strokeColor;
@@ -262,7 +250,6 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     ctx.restore();
   }, [strokes, currentPoints, isMouseActive, zoomLevel, zoomOffset, strokeColor, strokeWidth, isAreaZoomActive, areaZoomStart, areaZoomCurrent]);
 
-  // Smart Snap recognition algorithms
   const analyzeStroke = (points: Point[]): { type: "free" | "line" | "rect"; formattedPoints: Point[] } => {
     if (points.length < 8) return { type: "free", formattedPoints: points };
 
@@ -335,11 +322,9 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     return { type: "free", formattedPoints: points };
   };
 
-  // Mouse Handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (e.button !== 0) return; // Only left click
+    if (e.button !== 0) return;
 
-    // A. Area Crop Zoom Mode (Uses PURE viewport screen coords)
     if (isAreaZoomActive) {
       const vCoords = getViewportCoords(e);
       setAreaZoomStart(vCoords);
@@ -349,13 +334,11 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
 
     const coords = getCanvasCoords(e);
 
-    // B. Stamp mode in Fun Mode
     if (mode === "fun" && currentStamp) {
       onStampPlaced(coords.x, coords.y, currentStamp);
       return;
     }
 
-    // C. Normal drawing flow
     if (!isDrawing) return;
 
     setIsMouseActive(true);
@@ -371,11 +354,22 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
 
     if (!isDrawing || !isMouseActive) return;
     const coords = getCanvasCoords(e);
+
+    // Calculate real-time drag speed for Auditory noise play
+    const prevPoint = currentPoints[currentPoints.length - 1];
+    if (prevPoint) {
+      const dx = coords.x - prevPoint.x;
+      const dy = coords.y - prevPoint.y;
+      const speed = Math.sqrt(dx * dx + dy * dy);
+      onDrawStart(speed);
+    }
+
     setCurrentPoints((prev) => [...prev, coords]);
   };
 
   const handleMouseUp = () => {
-    // A. Area Zoom Selection Complete (Uses PURE viewport screen coords)
+    onDrawStop(); // stop scribble synth
+
     if (isAreaZoomActive && areaZoomStart && areaZoomCurrent) {
       const width = Math.abs(areaZoomCurrent.x - areaZoomStart.x);
       const height = Math.abs(areaZoomCurrent.y - areaZoomStart.y);
@@ -388,7 +382,6 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       return;
     }
 
-    // B. Normal Drawing Complete
     if (!isMouseActive) return;
     setIsMouseActive(false);
 
@@ -404,6 +397,11 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       const analysis = analyzeStroke(currentPoints);
       finalType = analysis.type;
       finalPoints = analysis.formattedPoints;
+      
+      // Play Snap SUCCESS Chime Earcon!
+      if (finalType !== "free") {
+        onSnapSuccess();
+      }
     }
 
     const newStroke: Stroke = {
