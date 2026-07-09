@@ -28,7 +28,7 @@ export interface InteractiveEffectsRef {
   triggerScreenFreeze: () => void;
   startScribbleSound: (speed: number) => void;
   stopScribbleSound: () => void;
-  playCustomEffect: (shape: "heart" | "star" | "cloud", style: "crystal" | "jelly" | "gold", animation: "explosion" | "rain" | "float") => void;
+  playCustomEffect: (shape: string, style: "crystal" | "jelly" | "gold", animation: "explosion" | "rain" | "float", customImageUrl?: string) => void;
 }
 
 interface EmojiReactionParticle {
@@ -1288,13 +1288,19 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
     };
 
     const playCustomEffect = (
-      shape: "heart" | "star" | "cloud",
+      shape: string,
       style: "crystal" | "jelly" | "gold",
-      animation: "explosion" | "rain" | "float"
+      animation: "explosion" | "rain" | "float",
+      customImageUrl?: string
     ) => {
-      const svgStr = getStylizedSvg(shape, style);
       const img = new Image();
-      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgStr);
+      img.crossOrigin = "anonymous";
+      if (customImageUrl) {
+        img.src = customImageUrl;
+      } else {
+        const svgStr = getStylizedSvg(shape as any, style);
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgStr);
+      }
 
       if (soundEnabled) {
         playAudioPreset("ding");

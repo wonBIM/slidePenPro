@@ -425,6 +425,7 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
 
   return (
     <canvas
+      id="drawing-canvas"
       ref={canvasRef}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

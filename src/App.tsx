@@ -31,9 +31,10 @@ interface PresetStamp {
 export interface CustomEffect {
   id: string;
   name: string;
-  shape: "heart" | "star" | "cloud";
+  shape: string;
   style: "crystal" | "jelly" | "gold";
   animation: "explosion" | "rain" | "float";
+  imageUrl?: string;
   createdAt: number;
 }
 
@@ -223,12 +224,19 @@ export default function App() {
     localStorage.setItem("slidepen_custom_effects", JSON.stringify(customEffects));
   }, [customEffects]);
 
+  const [openaiApiKey, setOpenaiApiKey] = useState(() => {
+    return localStorage.getItem("slidepen_openai_api_key") || "";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("slidepen_openai_api_key", openaiApiKey);
+  }, [openaiApiKey]);
+
   const [isAiSketchActive, setIsAiSketchActive] = useState(false);
   const [isAiConverting, setIsAiConverting] = useState(false);
-  const [aiResultCandidates, setAiResultCandidates] = useState<{ label: string; emoji: string; confidence: number; shape: "heart" | "star" | "cloud" }[]>([]);
 
   const handleTriggerCustomEffect = (effect: CustomEffect) => {
-    effectsRef.current?.playCustomEffect?.(effect.shape, effect.style, effect.animation);
+    effectsRef.current?.playCustomEffect?.(effect.shape as any, effect.style, effect.animation, effect.imageUrl);
   };
 
   // Keyboard Guide HUD State
@@ -1140,9 +1148,9 @@ export default function App() {
         setIsAiSketchActive={setIsAiSketchActive}
         isAiConverting={isAiConverting}
         setIsAiConverting={setIsAiConverting}
-        aiResultCandidates={aiResultCandidates}
-        setAiResultCandidates={setAiResultCandidates}
         triggerCustomEffect={handleTriggerCustomEffect}
+        openaiApiKey={openaiApiKey}
+        setOpenaiApiKey={setOpenaiApiKey}
       />
 
       {/* 6. Keys Shortcut Heads-Up Display (HUD) */}

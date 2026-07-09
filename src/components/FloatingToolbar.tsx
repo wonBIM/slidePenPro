@@ -91,9 +91,9 @@ interface FloatingToolbarProps {
   setIsAiSketchActive: (val: boolean) => void;
   isAiConverting: boolean;
   setIsAiConverting: (val: boolean) => void;
-  aiResultCandidates: { label: string; emoji: string; confidence: number; shape: "heart" | "star" | "cloud" }[];
-  setAiResultCandidates: (val: any) => void;
   triggerCustomEffect: (effect: any) => void;
+  openaiApiKey: string;
+  setOpenaiApiKey: (val: string) => void;
 }
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
@@ -152,9 +152,9 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   setIsAiSketchActive,
   isAiConverting,
   setIsAiConverting,
-  aiResultCandidates,
-  setAiResultCandidates,
-  triggerCustomEffect
+  triggerCustomEffect,
+  openaiApiKey,
+  setOpenaiApiKey
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showStickerPanel, setShowStickerPanel] = useState(false); // Sticker Popover
@@ -164,8 +164,13 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   const [editingStampId, setEditingStampId] = useState<string | null>(null);
   
   // 🪄 AI Custom Effect Creation local states
-  const [creationStep, setCreationStep] = useState<"idle" | "sketching" | "matched" | "naming">("idle");
-  const [selectedShape, setSelectedShape] = useState<"heart" | "star" | "cloud">("heart");
+  const [showAiCustomPanel, setShowAiCustomPanel] = useState(false); // Standalone AI Custom Panel toggle
+  const [showApiKeySetting, setShowApiKeySetting] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(openaiApiKey);
+  const [promptHint, setPromptHint] = useState("");
+  const [generatedImageUrl, setGeneratedImageUrl] = useState("");
+  const [creationStep, setCreationStep] = useState<"idle" | "sketching" | "naming">("idle");
+  const [selectedShape, setSelectedShape] = useState<string>("");
   const [selectedStyle, setSelectedStyle] = useState<"crystal" | "jelly" | "gold">("crystal");
   const [selectedAnimation, setSelectedAnimation] = useState<"explosion" | "rain" | "float">("explosion");
   const [effectName, setEffectName] = useState("");
@@ -178,6 +183,10 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       setCreationStep("idle");
     }
   }, [isAiSketchActive, creationStep]);
+
+  useEffect(() => {
+    setApiKeyInput(openaiApiKey);
+  }, [openaiApiKey]);
   
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const imagesInputRef = useRef<HTMLInputElement>(null);
@@ -234,48 +243,196 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     clearCanvas();
   };
 
-  const handleConvertSketch = () => {
-    setIsAiConverting(true);
-    // Simulate AI classification matching after 1.2 seconds
-    setTimeout(() => {
-      setIsAiConverting(false);
-      // Populate candidates
-      setAiResultCandidates([
-        { label: "하트", emoji: "❤️", confidence: 92, shape: "heart" },
-        { label: "별", emoji: "⭐", confidence: 85, shape: "star" },
-        { label: "구름", emoji: "☁️", confidence: 70, shape: "cloud" }
-      ]);
-      setCreationStep("matched");
-    }, 1200);
+  const getCanvasBase64 = (): string | null => {
+    const canvas = document.getElementById("drawing-canvas") as HTMLCanvasElement;
+    if (!canvas) return null;
+    
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext("2d");
+    if (!tempCtx) return null;
+    
+    // Solid white background
+    tempCtx.fillStyle = "#ffffff";
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    tempCtx.drawImage(canvas, 0, 0);
+    
+    const dataUrl = tempCanvas.toDataURL("image/png");
+    return dataUrl.replace(/^data:image\/png;base64,/, "");
   };
 
-  const handleSelectShape = (shape: "heart" | "star" | "cloud") => {
-    setSelectedShape(shape);
-    const defaultNames = {
-      heart: "러블리 하트 이펙트",
-      star: "샤이닝 스타 이펙트",
-      cloud: "드림 클라우드 이펙트"
-    };
-    setEffectName(defaultNames[shape]);
-    setCreationStep("naming");
+  const fetchAndMakeTransparent = async (url: string): Promise<string> => {
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(reader.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i+1];
+            const b = data[i+2];
+            // Key out black pixels
+            if (r < 45 && g < 45 && b < 45) {
+              data[i+3] = 0;
+            }
+          }
+          ctx.putImageData(imgData, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        };
+        img.onerror = reject;
+        img.src = reader.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const handleConvertSketch = async () => {
+    if (!openaiApiKey.trim()) {
+      alert("OpenAI API Key를 먼저 입력해 주세요. (우측 상단 톱니바퀴 클릭)");
+      setShowApiKeySetting(true);
+      return;
+    }
+
+    const base64Img = getCanvasBase64();
+    if (!base64Img) {
+      alert("스케치 캔버스를 찾을 수 없습니다.");
+      return;
+    }
+
+    setIsAiConverting(true);
+
+    try {
+      // 1. Call OpenAI GPT-4o-mini Vision to analyze the sketch
+      const visionResp = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openaiApiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "이 이미지는 사용자가 칠판에 손으로 그린 간단한 스케치 낙서입니다. 무엇을 그렸는지 판독해 주세요. 답변은 반드시 한국어 단어와 괄호 속의 영어 번역 형태로 출력해 주세요. 예: '비행기 (Airplane)'. 설명이나 문장 없이 반드시 이 양식만 단 한 줄로 반환해 주세요. 만약 무엇인지 전혀 판독할 수 없다면 사용자가 입력한 힌트 단어를 활용해 비슷한 결과로 유추해 반환하세요."
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:image/png;base64,${base64Img}`
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 60
+        })
+      });
+
+      if (!visionResp.ok) {
+        const err = await visionResp.json();
+        throw new Error(err.error?.message || "GPT Vision 분석 실패");
+      }
+
+      const visionData = await visionResp.json();
+      const recognizedText = visionData.choices[0]?.message?.content?.trim() || "비행기 (Airplane)";
+      
+      const match = recognizedText.match(/\(([^)]+)\)/);
+      const englishWord = match ? match[1].trim() : recognizedText;
+      const koreanWord = recognizedText.split("(")[0].trim();
+
+      setSelectedShape(koreanWord);
+      setEffectName(`${koreanWord} AI 이펙트`);
+
+      // 2. Call OpenAI DALL-E to generate the image
+      const stylePromptMap = {
+        crystal: "crystal neon style with glowing colorful light vectors, translucent glassy surfaces, sharp emissive edges",
+        jelly: "cute 3D jelly plastic style, soft glossy texture, highlights, smooth rounded shape, vibrant colors",
+        gold: "luxury 3D polished gold style, metallic gold reflection, shiny sparkles, rich bevel edges"
+      };
+      
+      const chosenStyle = stylePromptMap[selectedStyle as keyof typeof stylePromptMap] || stylePromptMap.crystal;
+      let dallEPrompt = `A single standalone isolated 3D asset icon of a ${englishWord} in ${chosenStyle}`;
+      if (promptHint.trim()) {
+        dallEPrompt += `, incorporating element details: ${promptHint.trim()}`;
+      }
+      dallEPrompt += `, black solid background, center aligned, mobile game ui icon asset style, highly detailed digital art.`;
+
+      const imageResp = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openaiApiKey}`
+        },
+        body: JSON.stringify({
+          model: "dall-e-2",
+          prompt: dallEPrompt,
+          n: 1,
+          size: "256x256"
+        })
+      });
+
+      if (!imageResp.ok) {
+        const err = await imageResp.json();
+        throw new Error(err.error?.message || "DALL-E 이미지 생성 실패");
+      }
+
+      const imageData = await imageResp.json();
+      const rawUrl = imageData?.data[0]?.url;
+      if (!rawUrl) {
+        throw new Error("DALL-E 이미지 생성 URL을 반환받지 못했습니다.");
+      }
+
+      // 3. Make transparent PNG and read as base64
+      const transparentUrl = await fetchAndMakeTransparent(rawUrl);
+      setGeneratedImageUrl(transparentUrl);
+      
+      // Proceed to naming step
+      setCreationStep("naming");
+    } catch (error: any) {
+      alert(`AI 변환 실패: ${error.message || error}`);
+    } finally {
+      setIsAiConverting(false);
+    }
   };
 
   const handleRegisterEffect = () => {
     const newEffect = {
       id: Math.random().toString(36).substring(7),
-      name: effectName.trim() || "내 효과",
-      shape: selectedShape,
+      name: effectName.trim() || `${selectedShape} 효과`,
+      shape: selectedShape || "custom",
       style: selectedStyle,
       animation: selectedAnimation,
+      imageUrl: generatedImageUrl,
       createdAt: Date.now()
     };
     setCustomEffects((prev) => [...prev, newEffect]);
-    // Clear canvas and reset creation flow
     clearCanvas();
     setIsAiSketchActive(false);
     setCreationStep("idle");
+    setPromptHint("");
+    setGeneratedImageUrl("");
     if (soundEnabled) {
-      // Play ding sound
       const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2019/2019-84.wav");
       audio.volume = 0.3;
       audio.play().catch(() => {});
@@ -572,56 +729,48 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 
       {/* 0.3 High-Quality Tabbed Effects Chooser Popover Panel */}
       {showEffectsPanel && !isCollapsed && (
-        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800/80 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 z-50 w-[290px] backdrop-blur-md animate-fade-in text-left">
+        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800/80 rounded-2xl p-4.5 shadow-2xl flex flex-col gap-3.5 z-50 w-[310px] backdrop-blur-md animate-fade-in text-left">
           
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
-            <span className="text-[11px] font-bold text-slate-200 flex items-center gap-1">✨ 시각 연출 및 장면 효과</span>
+          <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
+            <span className="text-sm font-black text-slate-200 flex items-center gap-1">✨ 시각 연출 및 장면 효과</span>
             <button
               onClick={() => setShowEffectsPanel(false)}
-              className="text-slate-500 hover:text-white transition-colors"
+              className="text-slate-500 hover:text-white transition-colors cursor-pointer border-none bg-transparent"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
 
           {/* Mini Tabs Switcher */}
-          <div className="flex rounded-lg bg-slate-950 p-0.5 border border-slate-850">
+          <div className="flex rounded-lg bg-slate-950 p-1 border border-slate-850">
             <button
               onClick={() => setEffectsTab("particles")}
-              className={`flex-1 text-center py-1 text-[9px] font-bold rounded transition-all cursor-pointer ${
-                effectsTab === "particles" ? "bg-slate-800 text-pink-400" : "text-slate-500 hover:text-slate-350"
+              className={`flex-1 text-center py-1.5 text-xs font-black rounded-md transition-all cursor-pointer ${
+                effectsTab === "particles" ? "bg-slate-850 text-pink-400 shadow" : "text-slate-500 hover:text-slate-300"
               }`}
             >
-              🎉 리액션
+              🎉 리액션 & 커서
             </button>
             <button
               onClick={() => setEffectsTab("scenes")}
-              className={`flex-1 text-center py-1 text-[9px] font-bold rounded transition-all cursor-pointer ${
-                effectsTab === "scenes" ? "bg-slate-800 text-pink-400" : "text-slate-500 hover:text-slate-350"
+              className={`flex-1 text-center py-1.5 text-xs font-black rounded-md transition-all cursor-pointer ${
+                effectsTab === "scenes" ? "bg-slate-850 text-pink-400 shadow" : "text-slate-500 hover:text-slate-350"
               }`}
             >
-              🎬 장면
-            </button>
-            <button
-              onClick={() => setEffectsTab("custom")}
-              className={`flex-1 text-center py-1 text-[9px] font-bold rounded transition-all cursor-pointer ${
-                effectsTab === "custom" ? "bg-slate-800 text-pink-400" : "text-slate-500 hover:text-slate-350"
-              }`}
-            >
-              🪄 AI 커스텀
+              🎬 장면 임팩트
             </button>
           </div>
 
           {/* TAB 1: Particles & Cursor Trails */}
           {effectsTab === "particles" && (
-            <div className="flex flex-col gap-2.5 animate-fade-in">
+            <div className="flex flex-col gap-3 animate-fade-in">
               <button
                 onClick={() => {
                   triggerConfetti();
                   setShowEffectsPanel(false);
                 }}
-                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-400 hover:to-violet-400 text-white text-[11px] font-extrabold shadow-md shadow-pink-600/20 active:scale-95 transition-all cursor-pointer w-full"
+                className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-400 hover:to-violet-400 text-white text-xs font-extrabold shadow-md shadow-pink-600/20 active:scale-95 transition-all cursor-pointer w-full"
               >
                 <span>🎉 축하 폭죽 쇼</span>
               </button>
@@ -631,21 +780,21 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   triggerEmojiBurst();
                   setShowEffectsPanel(false);
                 }}
-                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-slate-950 border border-slate-850 hover:bg-slate-900 text-pink-400 text-[11px] font-extrabold active:scale-95 transition-all cursor-pointer w-full"
+                className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-slate-950 border border-slate-850 hover:bg-slate-900 text-pink-400 text-xs font-extrabold active:scale-95 transition-all cursor-pointer w-full"
               >
                 <span>❤️ 하트 이모지 뿜뿜</span>
               </button>
 
               {/* Advanced Pointer Trails Selector */}
-              <div className="flex flex-col gap-1 bg-slate-950 p-2 rounded-lg border border-slate-850">
-                <span className="text-[9px] text-slate-500 font-bold">마우스 포인터 궤적 이펙트</span>
+              <div className="flex flex-col gap-1.5 bg-slate-950 p-2.5 rounded-xl border border-slate-850">
+                <span className="text-[10px] text-slate-500 font-bold">마우스 포인터 궤적 이펙트</span>
                 <select
                   value={cursorTrailType}
                   onChange={(e) => {
                     setCursorTrailType(e.target.value as any);
                     setShowEffectsPanel(false);
                   }}
-                  className="bg-transparent text-[11px] text-slate-300 outline-none w-full cursor-pointer py-0.5 border-none font-sans font-semibold"
+                  className="bg-transparent text-xs text-slate-300 outline-none w-full cursor-pointer py-1 border-none font-sans font-black"
                 >
                   <option value="none">❌ 마우스 효과 없음</option>
                   <option value="star">✨ 마법 은하수 별가루</option>
@@ -658,13 +807,13 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 
           {/* TAB 2: Screen-wide Scene Impact Effects */}
           {effectsTab === "scenes" && (
-            <div className="flex flex-col gap-2.5 animate-fade-in">
+            <div className="flex flex-col gap-3 animate-fade-in">
               <button
                 onClick={() => {
                   triggerScreenFreeze();
                   setShowEffectsPanel(false);
                 }}
-                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-sky-950/80 border border-sky-800 hover:bg-sky-900 text-sky-300 text-[11px] font-extrabold active:scale-95 transition-all cursor-pointer w-full"
+                className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-sky-950/80 border border-sky-800 hover:bg-sky-900 text-sky-300 text-xs font-extrabold active:scale-95 transition-all cursor-pointer w-full"
                 title="화면을 얼린 뒤 마우스로 클릭하면 유리창처럼 박살내기"
               >
                 <span>🥶 화면 얼리기 & 깨기</span>
@@ -675,7 +824,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   triggerEarthquake();
                   setShowEffectsPanel(false);
                 }}
-                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-amber-950/80 border border-amber-800 hover:bg-amber-900 text-amber-300 text-[11px] font-extrabold active:scale-95 transition-all cursor-pointer w-full"
+                className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-amber-950/80 border border-amber-800 hover:bg-amber-900 text-amber-300 text-xs font-extrabold active:scale-95 transition-all cursor-pointer w-full"
                 title="화면 전체가 지진 난 것처럼 60fps 격렬히 쉐이크"
               >
                 <span>🫨 화면 지진 흔들림</span>
@@ -686,21 +835,21 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   triggerMeteorShower();
                   setShowEffectsPanel(false);
                 }}
-                className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-indigo-950/80 border border-indigo-800 hover:bg-indigo-900 text-indigo-300 text-[11px] font-extrabold active:scale-95 transition-all cursor-pointer w-full"
+                className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-indigo-950/80 border border-indigo-800 hover:bg-indigo-900 text-indigo-300 text-xs font-extrabold active:scale-95 transition-all cursor-pointer w-full"
                 title="하늘에서 아름다운 별똥별들이 무리지어 쏟아짐"
               >
                 <span>☄️ 밤하늘 은하수 유성우</span>
               </button>
 
               {/* Border Chaser Toggle */}
-              <div className="flex items-center justify-between bg-slate-950 p-2 rounded-lg border border-slate-850 w-full">
-                <span className="text-[10px] text-slate-400 font-semibold">🚨 테두리 레이저 경보</span>
+              <div className="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-850 w-full">
+                <span className="text-xs text-slate-400 font-bold">🚨 테두리 레이저 경보</span>
                 <button
                   onClick={() => {
                     setNeonBorderActive(!neonBorderActive);
                     setShowEffectsPanel(false);
                   }}
-                  className={`flex h-7 items-center gap-1 px-2.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${
+                  className={`flex h-8 items-center gap-1 px-3 rounded-md text-xs font-bold border transition-all cursor-pointer ${
                     neonBorderActive
                       ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-bold"
                       : "bg-slate-850 border-slate-750 text-slate-500"
@@ -711,27 +860,85 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
 
-          {/* TAB 3: AI Custom Effects */}
-          {effectsTab === "custom" && (
-            <div className="flex flex-col gap-2 animate-fade-in text-[11px]">
+      {/* 0.4 Standalone AI Custom popover panel */}
+      {showAiCustomPanel && !isCollapsed && (
+        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-pink-500/30 rounded-2xl p-4.5 shadow-2xl flex flex-col gap-3.5 z-50 w-[320px] backdrop-blur-md animate-fade-in text-left">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-black text-slate-200">🪄 AI 커스텀 이펙트</span>
+              <span className="bg-pink-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded">PRO</span>
+            </div>
+            <button
+              onClick={() => setShowAiCustomPanel(false)}
+              className="text-slate-500 hover:text-white transition-colors cursor-pointer border-none bg-transparent"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* API Key Configuration Block */}
+          {(!openaiApiKey.trim() || showApiKeySetting) ? (
+            <div className="flex flex-col gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-850 animate-fade-in">
+              <div className="text-xs text-slate-400 font-bold leading-relaxed">
+                💡 실시간 생성형 AI 기능을 사용하려면 **OpenAI API Key**가 필요합니다. 입력된 키는 로컬에 안전하게 보관됩니다.
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-500 font-bold">OpenAI API Key</span>
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="sk-..."
+                  className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-pink-500/50 w-full"
+                />
+              </div>
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={() => {
+                    setOpenaiApiKey(apiKeyInput.trim());
+                    setShowApiKeySetting(false);
+                  }}
+                  className="flex-1 h-9 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-xs font-black transition-colors cursor-pointer border-none"
+                >
+                  저장하기
+                </button>
+                {openaiApiKey.trim() && (
+                  <button
+                    onClick={() => setShowApiKeySetting(false)}
+                    className="px-3.5 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-black transition-colors cursor-pointer border-none"
+                  >
+                    닫기
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
               {/* Spinner / Loading state */}
               {isAiConverting ? (
-                <div className="flex flex-col items-center justify-center py-6 gap-2 bg-slate-950/60 rounded-xl border border-slate-850">
-                  <div className="h-6 w-6 rounded-full border-2 border-pink-500 border-t-transparent animate-spin" />
-                  <span className="text-[10px] text-slate-400 font-bold">스케치 분석 & AI 스타일 생성 중...</span>
+                <div className="flex flex-col items-center justify-center py-8 gap-3 bg-slate-950/60 rounded-xl border border-slate-850">
+                  <div className="h-8 w-8 rounded-full border-3 border-pink-500 border-t-transparent animate-spin" />
+                  <div className="text-xs text-slate-300 font-black text-center leading-relaxed">
+                    AI가 스케치를 분석하여<br />
+                    3D 투명 이미지 에셋을 제작하는 중...
+                  </div>
+                  <span className="text-[10px] text-slate-500">(약 5~10초 소요됩니다)</span>
                 </div>
               ) : creationStep === "idle" ? (
                 <>
                   {/* Library List */}
-                  <div className="flex flex-col gap-1 max-h-[140px] overflow-y-auto pr-1 bg-slate-950/40 p-1.5 rounded-lg border border-slate-850/80">
-                    <div className="text-[9px] text-slate-500 font-black mb-1">내 커스텀 효과 라이브러리 ({customEffects.length})</div>
+                  <div className="flex flex-col gap-2 max-h-[170px] overflow-y-auto pr-1 bg-slate-950/40 p-2.5 rounded-xl border border-slate-850/80">
+                    <div className="text-[10px] text-slate-500 font-black mb-1">내 커스텀 효과 라이브러리 ({customEffects.length})</div>
                     {customEffects.length === 0 ? (
-                      <div className="text-center py-6 text-slate-650 text-[10px]">
-                        등록된 효과가 없습니다.<br />아래 버튼을 눌러 만들어 보세요!
+                      <div className="text-center py-8 text-slate-650 text-xs leading-relaxed">
+                        등록된 효과가 없습니다.<br />아래 버튼을 눌러 첫 AI 효과를 만들어 보세요!
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1.5">
                         {customEffects.map((eff) => {
                           const styleMap = { crystal: "💎", jelly: "🧸", gold: "🌟" };
                           const animMap = { explosion: "🎆", rain: "🌧️", float: "🫧" };
@@ -740,15 +947,20 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                               key={eff.id}
                               onClick={() => {
                                 triggerCustomEffect(eff);
-                                setShowEffectsPanel(false);
+                                setShowAiCustomPanel(false);
                               }}
-                              className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-850 hover:border-pink-500/50 hover:bg-slate-850/80 transition-all text-slate-350 hover:text-slate-100 group text-left cursor-pointer"
+                              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-slate-850 hover:border-pink-500/50 hover:bg-slate-850/80 transition-all text-slate-300 hover:text-slate-100 group text-left cursor-pointer"
                             >
-                              <span className="font-bold truncate max-w-[150px]">
-                                {styleMap[eff.style as keyof typeof styleMap]} {eff.name}
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] px-1.5 py-0.5 bg-slate-950 text-slate-500 rounded border border-slate-850">
+                              <div className="flex items-center gap-2 font-bold truncate max-w-[170px]">
+                                {eff.imageUrl ? (
+                                  <img src={eff.imageUrl} className="h-6 w-6 object-contain rounded bg-slate-950 p-0.5 border border-slate-800" />
+                                ) : (
+                                  <span>{styleMap[eff.style as keyof typeof styleMap]}</span>
+                                )}
+                                <span className="truncate text-xs">{eff.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span className="text-[10px] px-2 py-0.5 bg-slate-950 text-slate-500 rounded-md border border-slate-850">
                                   {animMap[eff.animation as keyof typeof animMap]}
                                 </span>
                                 <button
@@ -756,7 +968,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                                   className="text-slate-600 hover:text-red-400 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none bg-transparent"
                                   title="삭제"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <Trash2 className="h-4 w-4" />
                                 </button>
                               </div>
                             </button>
@@ -768,60 +980,66 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 
                   <button
                     onClick={handleStartSketching}
-                    className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-400 hover:to-violet-400 text-white text-[11px] font-extrabold shadow-md shadow-pink-600/20 active:scale-95 transition-all cursor-pointer w-full mt-1"
+                    className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-400 hover:to-violet-400 text-white text-xs font-extrabold shadow-md shadow-pink-600/20 active:scale-95 transition-all cursor-pointer w-full mt-1"
                   >
-                    <span>🎨 AI 스케치 그리기 활성화</span>
+                    <span>🎨 AI 스케치 그리기 시작</span>
                   </button>
+
+                  <div className="flex justify-end mt-1">
+                    <button
+                      onClick={() => setShowApiKeySetting(true)}
+                      className="text-[10px] text-slate-500 hover:text-slate-350 transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-none"
+                    >
+                      <Settings className="h-3 w-3" />
+                      <span>API Key 재설정</span>
+                    </button>
+                  </div>
                 </>
               ) : creationStep === "sketching" ? (
-                <div className="flex flex-col gap-2.5 bg-slate-950/60 p-2.5 rounded-xl border border-pink-500/20">
-                  <div className="text-[10px] text-pink-400 font-black leading-relaxed">
-                    💡 화면에 하트, 별, 구름 등의 스케치를 그린 뒤 아래 변환 버튼을 눌러주세요!
+                <div className="flex flex-col gap-3 bg-slate-950/60 p-3 rounded-xl border border-pink-500/20 animate-fade-in">
+                  <div className="text-xs text-pink-400 font-bold leading-relaxed">
+                    💡 화면에 원하시는 모양의 스케치를 자유롭게 그린 후 아래 힌트 단어를 입력하세요.
                   </div>
-                  <div className="flex gap-1.5">
+                  
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-slate-500 font-bold">스케치 힌트/단어 (예: 비행기, 자동차, 하트)</span>
+                    <input
+                      type="text"
+                      value={promptHint}
+                      onChange={(e) => setPromptHint(e.target.value)}
+                      placeholder="무엇을 그렸는지 힌트를 한글로 적어주세요..."
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-pink-500/50 w-full"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
                     <button
                       onClick={handleConvertSketch}
-                      className="flex-1 flex h-8 items-center justify-center gap-1 rounded-lg bg-pink-650 hover:bg-pink-500 text-white text-[10px] font-extrabold transition-all cursor-pointer shadow-lg shadow-pink-600/10"
+                      className="flex-1 flex h-10.5 items-center justify-center gap-1 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-xs font-extrabold transition-all cursor-pointer shadow-lg shadow-pink-600/10 border-none"
                     >
                       <span>🪄 스케치 완료 & AI 변환</span>
                     </button>
                     <button
                       onClick={handleCancelCreation}
-                      className="px-3 flex h-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-extrabold transition-all cursor-pointer"
+                      className="px-4.5 flex h-10.5 items-center justify-center rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-extrabold transition-all cursor-pointer border-none"
                     >
                       <span>취소</span>
                     </button>
                   </div>
                 </div>
-              ) : creationStep === "matched" ? (
-                <div className="flex flex-col gap-2.5 bg-slate-950/60 p-2.5 rounded-xl border border-pink-500/20">
-                  <div className="text-[10px] text-pink-400 font-black">🤖 AI 인식 결과 매칭:</div>
-                  <div className="flex flex-col gap-1.5">
-                    {aiResultCandidates.map((cand) => (
-                      <button
-                        key={cand.shape}
-                        onClick={() => handleSelectShape(cand.shape)}
-                        className="flex items-center justify-between p-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-850 hover:border-pink-500/40 text-slate-200 font-bold transition-all cursor-pointer text-left"
-                      >
-                        <span>{cand.emoji} {cand.label} 모양</span>
-                        <span className="text-[10px] font-mono text-pink-400 font-black bg-pink-500/10 px-1.5 py-0.5 rounded border border-pink-500/20">
-                          {cand.confidence}% 일치
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={handleCancelCreation}
-                    className="flex h-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-350 text-[10px] font-extrabold transition-all cursor-pointer w-full"
-                  >
-                    <span>스케치 다시 그리기 (취소)</span>
-                  </button>
-                </div>
               ) : (
-                // Naming step
-                <div className="flex flex-col gap-2 bg-slate-950/50 p-2.5 rounded-xl border border-pink-500/20 max-h-[260px] overflow-y-auto">
+                // Naming and Style Customization Step
+                <div className="flex flex-col gap-3 bg-slate-950/50 p-3 rounded-xl border border-pink-500/20 max-h-[350px] overflow-y-auto animate-fade-in">
+                  {/* Generated Image Preview */}
+                  {generatedImageUrl && (
+                    <div className="flex flex-col items-center gap-1.5">
+                      <span className="text-[10px] text-slate-500 font-bold">AI 생성 이미지 미리보기</span>
+                      <img src={generatedImageUrl} className="h-28 w-28 object-contain rounded-xl border border-slate-800 bg-slate-950 p-2 shadow-inner" />
+                    </div>
+                  )}
+
                   {/* Style Select */}
-                  <div className="flex flex-col gap-1 text-[9px] text-slate-500 font-bold">
+                  <div className="flex flex-col gap-1.5 text-[10px] text-slate-500 font-bold">
                     <span>1. AI 렌더링 스타일</span>
                     <div className="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
                       {[
@@ -832,10 +1050,10 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                         <button
                           key={st.id}
                           onClick={() => setSelectedStyle(st.id as any)}
-                          className={`py-1 rounded text-[9px] font-bold border transition-all cursor-pointer ${
+                          className={`py-1.5 rounded-md text-xs font-bold border transition-all cursor-pointer ${
                             selectedStyle === st.id
-                              ? "bg-pink-500/20 border-pink-500/40 text-pink-400"
-                              : "bg-slate-955 border-transparent text-slate-500 hover:text-slate-300"
+                              ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-black shadow"
+                              : "bg-slate-950 border-transparent text-slate-500 hover:text-slate-300"
                           }`}
                         >
                           <div>{st.label}</div>
@@ -845,7 +1063,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   </div>
 
                   {/* Animation Select */}
-                  <div className="flex flex-col gap-1 text-[9px] text-slate-500 font-bold">
+                  <div className="flex flex-col gap-1.5 text-[10px] text-slate-500 font-bold">
                     <span>2. 파티클 애니메이션 연출</span>
                     <div className="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
                       {[
@@ -856,10 +1074,10 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                         <button
                           key={an.id}
                           onClick={() => setSelectedAnimation(an.id as any)}
-                          className={`py-1 rounded text-[9px] font-bold border transition-all cursor-pointer ${
+                          className={`py-1.5 rounded-md text-xs font-bold border transition-all cursor-pointer ${
                             selectedAnimation === an.id
-                              ? "bg-pink-500/20 border-pink-500/40 text-pink-400"
-                              : "bg-slate-955 border-transparent text-slate-500 hover:text-slate-300"
+                              ? "bg-pink-500/20 border-pink-500/40 text-pink-400 font-black shadow"
+                              : "bg-slate-950 border-transparent text-slate-500 hover:text-slate-300"
                           }`}
                         >
                           <div>{an.label}</div>
@@ -869,28 +1087,28 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   </div>
 
                   {/* Name Input */}
-                  <div className="flex flex-col gap-1 text-[9px] text-slate-500 font-bold">
+                  <div className="flex flex-col gap-1 text-[10px] text-slate-500 font-bold">
                     <span>3. 효과 이름 지정</span>
                     <input
                       type="text"
                       value={effectName}
                       onChange={(e) => setEffectName(e.target.value)}
                       placeholder="효과 이름을 적어주세요..."
-                      className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-250 focus:outline-none focus:border-pink-500/50"
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-pink-500/50"
                     />
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-1.5 pt-1 border-t border-slate-850/80">
+                  <div className="flex gap-2 pt-2.5 border-t border-slate-850/80">
                     <button
                       onClick={handleRegisterEffect}
-                      className="flex-1 flex h-8 items-center justify-center gap-1 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-[10px] font-extrabold transition-all cursor-pointer shadow-lg shadow-pink-600/10"
+                      className="flex-1 flex h-10.5 items-center justify-center gap-1 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-xs font-black transition-all cursor-pointer shadow-lg shadow-pink-600/10 border-none"
                     >
                       <span>💾 라이브러리 등록</span>
                     </button>
                     <button
                       onClick={handleCancelCreation}
-                      className="px-3 flex h-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-extrabold transition-all cursor-pointer"
+                      className="px-4.5 flex h-10.5 items-center justify-center rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-black transition-all cursor-pointer border-none"
                     >
                       <span>취소</span>
                     </button>
@@ -1034,6 +1252,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   setEditingStampId(null);
                   setShowPenPanel(false);
                   setShowEffectsPanel(false);
+                  setShowAiCustomPanel(false);
                 }}
                 className={`flex h-11 items-center gap-1.5 rounded-xl px-4 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 ${
                   showStickerPanel || currentStamp
@@ -1050,6 +1269,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
               <button
                 onClick={() => {
                   setShowEffectsPanel(!showEffectsPanel);
+                  setShowAiCustomPanel(false);
                   setShowStickerPanel(false);
                   setShowPenPanel(false);
                 }}
@@ -1062,6 +1282,26 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
               >
                 <Sparkles className="h-4 w-4" />
                 <span>✨ 효과</span>
+              </button>
+
+              {/* 🪄 Standing AI Custom button */}
+              <button
+                onClick={() => {
+                  setShowAiCustomPanel(!showAiCustomPanel);
+                  setShowEffectsPanel(false);
+                  setShowStickerPanel(false);
+                  setShowPenPanel(false);
+                }}
+                className={`flex h-11 items-center gap-1.5 rounded-xl px-4 text-xs font-black border transition-all cursor-pointer whitespace-nowrap hover:scale-110 active:scale-95 relative overflow-hidden ${
+                  showAiCustomPanel || isAiSketchActive
+                    ? "bg-gradient-to-r from-pink-500/20 to-violet-500/20 border-pink-500/50 text-pink-400 font-bold shadow-lg shadow-pink-500/20"
+                    : "bg-slate-800/55 border-slate-700/50 text-slate-300 hover:bg-slate-800 hover:text-slate-200"
+                }`}
+                title="나만의 AI 생성 효과 제작 및 재생"
+              >
+                <Sparkles className="h-4 w-4 text-pink-400 animate-pulse" />
+                <span>🪄 AI 커스텀</span>
+                <span className="absolute -top-1 -right-1 bg-pink-500 text-white text-[7px] font-extrabold px-1 rounded-bl">PRO</span>
               </button>
 
               {/* Sound Option Toggle */}
