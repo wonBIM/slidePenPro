@@ -28,6 +28,7 @@ export interface InteractiveEffectsRef {
   triggerScreenFreeze: () => void;
   startScribbleSound: (speed: number) => void;
   stopScribbleSound: () => void;
+  playCustomEffect: (shape: "heart" | "star" | "cloud", style: "crystal" | "jelly" | "gold", animation: "explosion" | "rain" | "float") => void;
 }
 
 interface EmojiReactionParticle {
@@ -95,6 +96,22 @@ interface GlassShard {
   opacity: number;
 }
 
+interface CustomParticle {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  opacity: number;
+  rotation: number;
+  rotSpeed: number;
+  image: HTMLImageElement;
+  animation: "explosion" | "rain" | "float";
+  life: number;
+  maxLife: number;
+}
+
 interface SimulatedStamp {
   id: string;
   x: number;
@@ -112,6 +129,153 @@ interface SimulatedStamp {
   height: number;
 }
 
+const getStylizedSvg = (shape: "heart" | "star" | "cloud", style: "crystal" | "jelly" | "gold"): string => {
+  let innerPaths = "";
+  let defs = "";
+  let size = 64;
+
+  if (shape === "heart") {
+    if (style === "crystal") {
+      defs = `
+        <linearGradient id="c-h-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ff758c" stop-opacity="0.8" />
+          <stop offset="100%" stop-color="#ff7eb3" stop-opacity="0.4" />
+        </linearGradient>
+        <filter id="c-h-glow">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      `;
+      innerPaths = `
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#c-h-grad)" stroke="#00f3ff" stroke-width="1.5" filter="url(#c-h-glow)" />
+        <path d="M7.5 4.5c-2.2 0-4 1.8-4 4 0 2.5 2.2 4.8 6.7 8.9l1.8 1.6 1.8-1.6c4.5-4.1 6.7-6.4 6.7-8.9 0-2.2-1.8-4-4-4-1.3 0-2.5.7-3.2 1.8L12 7.7l-1.3-1.4c-.7-1.1-1.9-1.8-3.2-1.8z" fill="none" stroke="#fff" stroke-width="0.75" stroke-opacity="0.6" />
+      `;
+    } else if (style === "jelly") {
+      defs = `
+        <radialGradient id="j-h-grad" cx="30%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="#ff9a9e" />
+          <stop offset="50%" stop-color="#f6416c" />
+          <stop offset="100%" stop-color="#8b002c" />
+        </radialGradient>
+      `;
+      innerPaths = `
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#j-h-grad)" />
+        <ellipse cx="8.5" cy="7" rx="2.5" ry="1.5" transform="rotate(-30 8.5 7)" fill="#ffffff" fill-opacity="0.8" />
+      `;
+    } else { // gold
+      defs = `
+        <linearGradient id="g-h-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ffe259" />
+          <stop offset="50%" stop-color="#ffa751" />
+          <stop offset="100%" stop-color="#b8860b" />
+        </linearGradient>
+      `;
+      innerPaths = `
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#g-h-grad)" stroke="#fff" stroke-width="0.5" />
+        <path d="M12 19.5l-1.2-1.1C6.2 14.2 3 11.2 3 8c0-2.5 2-4.5 4.5-4.5 1.5 0 2.9.7 3.8 1.8l.7.8.7-.8c.9-1.1 2.3-1.8 3.8-1.8C19 3.5 21 5.5 21 8c0 3.2-3.2 6.2-7.8 10.4l-1.2 1.1z" fill="none" stroke="#ffe259" stroke-width="1.2" stroke-opacity="0.8" />
+      `;
+    }
+  } else if (shape === "star") {
+    if (style === "crystal") {
+      defs = `
+        <linearGradient id="c-s-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.8" />
+          <stop offset="100%" stop-color="#4facfe" stop-opacity="0.4" />
+        </linearGradient>
+        <filter id="c-s-glow">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      `;
+      innerPaths = `
+        <polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" fill="url(#c-s-grad)" stroke="#ff007f" stroke-width="1.5" filter="url(#c-s-glow)" />
+        <polygon points="12,4 14.2,9.5 20,9.5 16,13.5 17.5,19 12,16 6.5,19 8,13.5 4,9.5 9.8,9.5" fill="none" stroke="#fff" stroke-width="0.75" stroke-opacity="0.6" />
+      `;
+    } else if (style === "jelly") {
+      defs = `
+        <radialGradient id="j-s-grad" cx="35%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#fffb54" />
+          <stop offset="60%" stop-color="#ffb300" />
+          <stop offset="100%" stop-color="#ff6f00" />
+        </radialGradient>
+      `;
+      innerPaths = `
+        <polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" fill="url(#j-s-grad)" />
+        <ellipse cx="10" cy="8" rx="2" ry="1.2" transform="rotate(-15 10 8)" fill="#ffffff" fill-opacity="0.8" />
+      `;
+    } else { // gold
+      defs = `
+        <linearGradient id="g-s-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#fff" />
+          <stop offset="30%" stop-color="#ffe259" />
+          <stop offset="100%" stop-color="#c59b27" />
+        </linearGradient>
+      `;
+      innerPaths = `
+        <polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" fill="url(#g-s-grad)" stroke="#b8860b" stroke-width="0.5" />
+        <polygon points="12,3.8 14.5,9.3 20.3,9.3 16.2,13.3 17.7,19 12,16 6.3,19 7.8,13.3 3.7,9.3 9.5,9.3" fill="none" stroke="#ffe57f" stroke-width="1.2" stroke-opacity="0.8" />
+      `;
+    }
+  } else { // cloud
+    if (style === "crystal") {
+      defs = `
+        <linearGradient id="c-c-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#e0c3fc" stop-opacity="0.85" />
+          <stop offset="100%" stop-color="#8ec5fc" stop-opacity="0.4" />
+        </linearGradient>
+        <filter id="c-c-glow">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      `;
+      innerPaths = `
+        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" fill="url(#c-c-grad)" stroke="#b5179e" stroke-width="1.5" filter="url(#c-c-glow)" />
+        <path d="M19.35 11.04C18.67 7.59 15.64 5 12 5c-2.9 0-5.4 1.6-6.6 4-.2-.1-.5-.1-.7-.1-2.5 0-4.5 2-4.5 4.5S2.2 18 4.7 18h13.6c2.2 0 4-1.8 4-4 0-2.1-1.7-3.9-3.9-3.96z" fill="none" stroke="#fff" stroke-width="0.75" stroke-opacity="0.6" />
+      `;
+    } else if (style === "jelly") {
+      defs = `
+        <radialGradient id="j-c-grad" cx="30%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="#e0f7fa" />
+          <stop offset="60%" stop-color="#b2ebf2" />
+          <stop offset="100%" stop-color="#4dd0e1" />
+        </radialGradient>
+      `;
+      innerPaths = `
+        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" fill="url(#j-c-grad)" />
+        <ellipse cx="8" cy="11" rx="2" ry="1.2" fill="#ffffff" fill-opacity="0.8" />
+        <ellipse cx="14" cy="8" rx="2.5" ry="1.5" fill="#ffffff" fill-opacity="0.8" />
+      `;
+    } else { // gold
+      defs = `
+        <linearGradient id="g-c-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ffe259" />
+          <stop offset="100%" stop-color="#c59b27" />
+        </linearGradient>
+      `;
+      innerPaths = `
+        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" fill="url(#g-c-grad)" stroke="#b8860b" stroke-width="0.5" />
+        <path d="M19.35 11.04C18.67 7.59 15.64 5 12 5c-2.9 0-5.4 1.6-6.6 4-.2-.1-.5-.1-.7-.1-2.5 0-4.5 2-4.5 4.5S2.2 18 4.7 18h13.6c2.2 0 4-1.8 4-4 0-2.1-1.7-3.9-3.9-3.96z" fill="none" stroke="#ffe57f" stroke-width="1.2" stroke-opacity="0.8" />
+      `;
+    }
+  }
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}">
+      <defs>${defs}</defs>
+      ${innerPaths}
+    </svg>
+  `.trim();
+};
+
 export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveEffectsProps>(
   ({ stamps, zoomLevel, zoomOffset, soundEnabled, isEffectsInteractive }, ref) => {
     const confettiCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -126,6 +290,7 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
     const bubbleParticlesRef = useRef<BubbleParticle[]>([]);
     const meteorParticlesRef = useRef<MeteorParticle[]>([]);
     const glassShardsRef = useRef<GlassShard[]>([]);
+    const customParticlesRef = useRef<CustomParticle[]>([]);
 
     const localStampsRef = useRef<SimulatedStamp[]>([]);
     const draggingStampIdRef = useRef<string | null>(null);
@@ -1029,6 +1194,43 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
         });
         meteorParticlesRef.current = activeMeteors;
 
+        // Draw AI Custom Particles
+        const activeCustom: CustomParticle[] = [];
+        customParticlesRef.current.forEach((p) => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.rotation += p.rotSpeed;
+          p.life++;
+
+          // Apply physics based on animation type
+          if (p.animation === "rain") {
+            p.vy += 0.08; // gravity
+            p.vx = Math.sin(p.life / 15) * 0.5; // slight sway
+          } else if (p.animation === "float") {
+            p.vy = -1.5 - Math.sin(p.life / 30) * 0.5; // float velocity
+            p.vx = Math.sin(p.life / 20) * 0.8; // wobble sway
+          } else if (p.animation === "explosion") {
+            p.vx *= 0.98; // air resistance friction
+            p.vy *= 0.98;
+          }
+
+          // Calculate opacity fade out based on life
+          if (p.life > p.maxLife * 0.7) {
+            p.opacity = 1.0 - (p.life - p.maxLife * 0.7) / (p.maxLife * 0.3);
+          }
+
+          if (p.life < p.maxLife && p.opacity > 0) {
+            ctx.save();
+            ctx.globalAlpha = p.opacity;
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            ctx.drawImage(p.image, -p.size / 2, -p.size / 2, p.size, p.size);
+            ctx.restore();
+            activeCustom.push(p);
+          }
+        });
+        customParticlesRef.current = activeCustom;
+
         animationFrameRef.current = requestAnimationFrame(loop);
       };
 
@@ -1085,6 +1287,86 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       }
     };
 
+    const playCustomEffect = (
+      shape: "heart" | "star" | "cloud",
+      style: "crystal" | "jelly" | "gold",
+      animation: "explosion" | "rain" | "float"
+    ) => {
+      const svgStr = getStylizedSvg(shape, style);
+      const img = new Image();
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgStr);
+
+      if (soundEnabled) {
+        playAudioPreset("ding");
+      }
+
+      img.onload = () => {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        if (animation === "explosion") {
+          const spawnX = lastMousePosRef.current.x || width / 2;
+          const spawnY = lastMousePosRef.current.y || height / 2;
+
+          for (let i = 0; i < 20; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 6;
+            customParticlesRef.current.push({
+              id: Math.random().toString(36).substring(7),
+              x: spawnX,
+              y: spawnY,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              size: 24 + Math.random() * 24,
+              opacity: 1.0,
+              rotation: Math.random() * Math.PI * 2,
+              rotSpeed: -0.1 + Math.random() * 0.2,
+              image: img,
+              animation: "explosion",
+              life: 0,
+              maxLife: 60 + Math.random() * 40
+            });
+          }
+        } else if (animation === "rain") {
+          for (let i = 0; i < 30; i++) {
+            customParticlesRef.current.push({
+              id: Math.random().toString(36).substring(7),
+              x: Math.random() * width,
+              y: -50 - Math.random() * 150,
+              vx: -1 + Math.random() * 2,
+              vy: 2 + Math.random() * 4,
+              size: 20 + Math.random() * 20,
+              opacity: 1.0,
+              rotation: Math.random() * Math.PI * 2,
+              rotSpeed: -0.05 + Math.random() * 0.1,
+              image: img,
+              animation: "rain",
+              life: 0,
+              maxLife: 150 + Math.random() * 100
+            });
+          }
+        } else if (animation === "float") {
+          for (let i = 0; i < 25; i++) {
+            customParticlesRef.current.push({
+              id: Math.random().toString(36).substring(7),
+              x: Math.random() * width,
+              y: height + 50 + Math.random() * 150,
+              vx: -0.5 + Math.random() * 1,
+              vy: -1.5 - Math.random() * 3,
+              size: 20 + Math.random() * 24,
+              opacity: 1.0,
+              rotation: Math.random() * Math.PI * 2,
+              rotSpeed: -0.02 + Math.random() * 0.04,
+              image: img,
+              animation: "float",
+              life: 0,
+              maxLife: 150 + Math.random() * 100
+            });
+          }
+        }
+      };
+    };
+
     useImperativeHandle(ref, () => ({
       triggerConfetti,
       playAudioPreset,
@@ -1102,7 +1384,8 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
       playMeteorShower,
       triggerScreenFreeze,
       startScribbleSound,
-      stopScribbleSound
+      stopScribbleSound,
+      playCustomEffect
     }));
 
     return (

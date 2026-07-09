@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   PenTool,
   Sparkles,
@@ -76,14 +76,24 @@ interface FloatingToolbarProps {
   neonBorderActive: boolean;
   setNeonBorderActive: (val: boolean) => void;
   triggerEmojiBurst: () => void;
-  triggerMeteorShower: () => void;
   triggerScreenFreeze: () => void;
+  triggerMeteorShower: () => void;
   triggerEarthquake: () => void;
   // 🎡 Gamification spinner/timer hooks
   showSpinner: boolean;
   setShowSpinner: (val: boolean) => void;
   showTimer: boolean;
   setShowTimer: (val: boolean) => void;
+  // 🪄 AI Custom Effects
+  customEffects: any[];
+  setCustomEffects: React.Dispatch<React.SetStateAction<any[]>>;
+  isAiSketchActive: boolean;
+  setIsAiSketchActive: (val: boolean) => void;
+  isAiConverting: boolean;
+  setIsAiConverting: (val: boolean) => void;
+  aiResultCandidates: { label: string; emoji: string; confidence: number; shape: "heart" | "star" | "cloud" }[];
+  setAiResultCandidates: (val: any) => void;
+  triggerCustomEffect: (effect: any) => void;
 }
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
@@ -135,14 +145,39 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   showSpinner,
   setShowSpinner,
   showTimer,
-  setShowTimer
+  setShowTimer,
+  customEffects,
+  setCustomEffects,
+  isAiSketchActive,
+  setIsAiSketchActive,
+  isAiConverting,
+  setIsAiConverting,
+  aiResultCandidates,
+  setAiResultCandidates,
+  triggerCustomEffect
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showStickerPanel, setShowStickerPanel] = useState(false); // Sticker Popover
   const [showPenPanel, setShowPenPanel] = useState(false); // Pen Settings Popover
   const [showEffectsPanel, setShowEffectsPanel] = useState(false); // Effects Tab Popover
-  const [effectsTab, setEffectsTab] = useState<"particles" | "scenes">("particles"); // Effects tab state
+  const [effectsTab, setEffectsTab] = useState<"particles" | "scenes" | "custom">("particles"); // Effects tab state
   const [editingStampId, setEditingStampId] = useState<string | null>(null);
+  
+  // 🪄 AI Custom Effect Creation local states
+  const [creationStep, setCreationStep] = useState<"idle" | "sketching" | "matched" | "naming">("idle");
+  const [selectedShape, setSelectedShape] = useState<"heart" | "star" | "cloud">("heart");
+  const [selectedStyle, setSelectedStyle] = useState<"crystal" | "jelly" | "gold">("crystal");
+  const [selectedAnimation, setSelectedAnimation] = useState<"explosion" | "rain" | "float">("explosion");
+  const [effectName, setEffectName] = useState("");
+
+  // Sync creationStep with isAiSketchActive to prevent popover closing resets
+  useEffect(() => {
+    if (isAiSketchActive && creationStep === "idle") {
+      setCreationStep("sketching");
+    } else if (!isAiSketchActive && creationStep !== "idle") {
+      setCreationStep("idle");
+    }
+  }, [isAiSketchActive, creationStep]);
   
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const imagesInputRef = useRef<HTMLInputElement>(null);
@@ -180,6 +215,76 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     if (currentStamp === idToDelete) {
       setCurrentStamp(null);
     }
+  };
+
+  // 🪄 AI Custom Effect Handlers
+  const handleStartSketching = () => {
+    setCreationStep("sketching");
+    setIsAiSketchActive(true);
+    setIsDrawing(true); // Automatically turn on drawing mode!
+    setCurrentStamp(null); // Clear stamp mode
+    setIsAreaZoomActive(false); // Clear zoom mode
+    clearCanvas(); // Clear canvas so the user has a fresh canvas
+  };
+
+  const handleCancelCreation = () => {
+    setCreationStep("idle");
+    setIsAiSketchActive(false);
+    setIsDrawing(false);
+    clearCanvas();
+  };
+
+  const handleConvertSketch = () => {
+    setIsAiConverting(true);
+    // Simulate AI classification matching after 1.2 seconds
+    setTimeout(() => {
+      setIsAiConverting(false);
+      // Populate candidates
+      setAiResultCandidates([
+        { label: "하트", emoji: "❤️", confidence: 92, shape: "heart" },
+        { label: "별", emoji: "⭐", confidence: 85, shape: "star" },
+        { label: "구름", emoji: "☁️", confidence: 70, shape: "cloud" }
+      ]);
+      setCreationStep("matched");
+    }, 1200);
+  };
+
+  const handleSelectShape = (shape: "heart" | "star" | "cloud") => {
+    setSelectedShape(shape);
+    const defaultNames = {
+      heart: "러블리 하트 이펙트",
+      star: "샤이닝 스타 이펙트",
+      cloud: "드림 클라우드 이펙트"
+    };
+    setEffectName(defaultNames[shape]);
+    setCreationStep("naming");
+  };
+
+  const handleRegisterEffect = () => {
+    const newEffect = {
+      id: Math.random().toString(36).substring(7),
+      name: effectName.trim() || "내 효과",
+      shape: selectedShape,
+      style: selectedStyle,
+      animation: selectedAnimation,
+      createdAt: Date.now()
+    };
+    setCustomEffects((prev) => [...prev, newEffect]);
+    // Clear canvas and reset creation flow
+    clearCanvas();
+    setIsAiSketchActive(false);
+    setCreationStep("idle");
+    if (soundEnabled) {
+      // Play ding sound
+      const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2019/2019-84.wav");
+      audio.volume = 0.3;
+      audio.play().catch(() => {});
+    }
+  };
+
+  const handleDeleteCustomEffect = (e: React.MouseEvent, idToDelete: string) => {
+    e.stopPropagation();
+    setCustomEffects((prev) => prev.filter((eff) => eff.id !== idToDelete));
   };
 
   return (
@@ -467,7 +572,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
 
       {/* 0.3 High-Quality Tabbed Effects Chooser Popover Panel */}
       {showEffectsPanel && !isCollapsed && (
-        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800/80 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 z-50 w-[270px] backdrop-blur-md animate-fade-in text-left">
+        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800/80 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 z-50 w-[290px] backdrop-blur-md animate-fade-in text-left">
           
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
@@ -484,19 +589,27 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           <div className="flex rounded-lg bg-slate-950 p-0.5 border border-slate-850">
             <button
               onClick={() => setEffectsTab("particles")}
-              className={`flex-1 text-center py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
+              className={`flex-1 text-center py-1 text-[9px] font-bold rounded transition-all cursor-pointer ${
                 effectsTab === "particles" ? "bg-slate-800 text-pink-400" : "text-slate-500 hover:text-slate-350"
               }`}
             >
-              🎉 리액션 & 커서
+              🎉 리액션
             </button>
             <button
               onClick={() => setEffectsTab("scenes")}
-              className={`flex-1 text-center py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
+              className={`flex-1 text-center py-1 text-[9px] font-bold rounded transition-all cursor-pointer ${
                 effectsTab === "scenes" ? "bg-slate-800 text-pink-400" : "text-slate-500 hover:text-slate-350"
               }`}
             >
-              🎬 장면 임팩트
+              🎬 장면
+            </button>
+            <button
+              onClick={() => setEffectsTab("custom")}
+              className={`flex-1 text-center py-1 text-[9px] font-bold rounded transition-all cursor-pointer ${
+                effectsTab === "custom" ? "bg-slate-800 text-pink-400" : "text-slate-500 hover:text-slate-350"
+              }`}
+            >
+              🪄 AI 커스텀
             </button>
           </div>
 
@@ -596,6 +709,194 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   <span>{neonBorderActive ? "켬" : "끔"}</span>
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* TAB 3: AI Custom Effects */}
+          {effectsTab === "custom" && (
+            <div className="flex flex-col gap-2 animate-fade-in text-[11px]">
+              {/* Spinner / Loading state */}
+              {isAiConverting ? (
+                <div className="flex flex-col items-center justify-center py-6 gap-2 bg-slate-950/60 rounded-xl border border-slate-850">
+                  <div className="h-6 w-6 rounded-full border-2 border-pink-500 border-t-transparent animate-spin" />
+                  <span className="text-[10px] text-slate-400 font-bold">스케치 분석 & AI 스타일 생성 중...</span>
+                </div>
+              ) : creationStep === "idle" ? (
+                <>
+                  {/* Library List */}
+                  <div className="flex flex-col gap-1 max-h-[140px] overflow-y-auto pr-1 bg-slate-950/40 p-1.5 rounded-lg border border-slate-850/80">
+                    <div className="text-[9px] text-slate-500 font-black mb-1">내 커스텀 효과 라이브러리 ({customEffects.length})</div>
+                    {customEffects.length === 0 ? (
+                      <div className="text-center py-6 text-slate-650 text-[10px]">
+                        등록된 효과가 없습니다.<br />아래 버튼을 눌러 만들어 보세요!
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {customEffects.map((eff) => {
+                          const styleMap = { crystal: "💎", jelly: "🧸", gold: "🌟" };
+                          const animMap = { explosion: "🎆", rain: "🌧️", float: "🫧" };
+                          return (
+                            <button
+                              key={eff.id}
+                              onClick={() => {
+                                triggerCustomEffect(eff);
+                                setShowEffectsPanel(false);
+                              }}
+                              className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-850 hover:border-pink-500/50 hover:bg-slate-850/80 transition-all text-slate-350 hover:text-slate-100 group text-left cursor-pointer"
+                            >
+                              <span className="font-bold truncate max-w-[150px]">
+                                {styleMap[eff.style as keyof typeof styleMap]} {eff.name}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] px-1.5 py-0.5 bg-slate-950 text-slate-500 rounded border border-slate-850">
+                                  {animMap[eff.animation as keyof typeof animMap]}
+                                </span>
+                                <button
+                                  onClick={(e) => handleDeleteCustomEffect(e, eff.id)}
+                                  className="text-slate-600 hover:text-red-400 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none bg-transparent"
+                                  title="삭제"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleStartSketching}
+                    className="flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-400 hover:to-violet-400 text-white text-[11px] font-extrabold shadow-md shadow-pink-600/20 active:scale-95 transition-all cursor-pointer w-full mt-1"
+                  >
+                    <span>🎨 AI 스케치 그리기 활성화</span>
+                  </button>
+                </>
+              ) : creationStep === "sketching" ? (
+                <div className="flex flex-col gap-2.5 bg-slate-950/60 p-2.5 rounded-xl border border-pink-500/20">
+                  <div className="text-[10px] text-pink-400 font-black leading-relaxed">
+                    💡 화면에 하트, 별, 구름 등의 스케치를 그린 뒤 아래 변환 버튼을 눌러주세요!
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={handleConvertSketch}
+                      className="flex-1 flex h-8 items-center justify-center gap-1 rounded-lg bg-pink-650 hover:bg-pink-500 text-white text-[10px] font-extrabold transition-all cursor-pointer shadow-lg shadow-pink-600/10"
+                    >
+                      <span>🪄 스케치 완료 & AI 변환</span>
+                    </button>
+                    <button
+                      onClick={handleCancelCreation}
+                      className="px-3 flex h-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-extrabold transition-all cursor-pointer"
+                    >
+                      <span>취소</span>
+                    </button>
+                  </div>
+                </div>
+              ) : creationStep === "matched" ? (
+                <div className="flex flex-col gap-2.5 bg-slate-950/60 p-2.5 rounded-xl border border-pink-500/20">
+                  <div className="text-[10px] text-pink-400 font-black">🤖 AI 인식 결과 매칭:</div>
+                  <div className="flex flex-col gap-1.5">
+                    {aiResultCandidates.map((cand) => (
+                      <button
+                        key={cand.shape}
+                        onClick={() => handleSelectShape(cand.shape)}
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-850 hover:border-pink-500/40 text-slate-200 font-bold transition-all cursor-pointer text-left"
+                      >
+                        <span>{cand.emoji} {cand.label} 모양</span>
+                        <span className="text-[10px] font-mono text-pink-400 font-black bg-pink-500/10 px-1.5 py-0.5 rounded border border-pink-500/20">
+                          {cand.confidence}% 일치
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleCancelCreation}
+                    className="flex h-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-350 text-[10px] font-extrabold transition-all cursor-pointer w-full"
+                  >
+                    <span>스케치 다시 그리기 (취소)</span>
+                  </button>
+                </div>
+              ) : (
+                // Naming step
+                <div className="flex flex-col gap-2 bg-slate-950/50 p-2.5 rounded-xl border border-pink-500/20 max-h-[260px] overflow-y-auto">
+                  {/* Style Select */}
+                  <div className="flex flex-col gap-1 text-[9px] text-slate-500 font-bold">
+                    <span>1. AI 렌더링 스타일</span>
+                    <div className="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
+                      {[
+                        { id: "crystal", label: "💎 크리스탈" },
+                        { id: "jelly", label: "🧸 젤리" },
+                        { id: "gold", label: "🌟 골드" }
+                      ].map((st) => (
+                        <button
+                          key={st.id}
+                          onClick={() => setSelectedStyle(st.id as any)}
+                          className={`py-1 rounded text-[9px] font-bold border transition-all cursor-pointer ${
+                            selectedStyle === st.id
+                              ? "bg-pink-500/20 border-pink-500/40 text-pink-400"
+                              : "bg-slate-955 border-transparent text-slate-500 hover:text-slate-300"
+                          }`}
+                        >
+                          <div>{st.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Animation Select */}
+                  <div className="flex flex-col gap-1 text-[9px] text-slate-500 font-bold">
+                    <span>2. 파티클 애니메이션 연출</span>
+                    <div className="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
+                      {[
+                        { id: "explosion", label: "🎆 폭죽" },
+                        { id: "rain", label: "🌧️ 비" },
+                        { id: "float", label: "🫧 둥실" }
+                      ].map((an) => (
+                        <button
+                          key={an.id}
+                          onClick={() => setSelectedAnimation(an.id as any)}
+                          className={`py-1 rounded text-[9px] font-bold border transition-all cursor-pointer ${
+                            selectedAnimation === an.id
+                              ? "bg-pink-500/20 border-pink-500/40 text-pink-400"
+                              : "bg-slate-955 border-transparent text-slate-500 hover:text-slate-300"
+                          }`}
+                        >
+                          <div>{an.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Name Input */}
+                  <div className="flex flex-col gap-1 text-[9px] text-slate-500 font-bold">
+                    <span>3. 효과 이름 지정</span>
+                    <input
+                      type="text"
+                      value={effectName}
+                      onChange={(e) => setEffectName(e.target.value)}
+                      placeholder="효과 이름을 적어주세요..."
+                      className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-250 focus:outline-none focus:border-pink-500/50"
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-1.5 pt-1 border-t border-slate-850/80">
+                    <button
+                      onClick={handleRegisterEffect}
+                      className="flex-1 flex h-8 items-center justify-center gap-1 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-[10px] font-extrabold transition-all cursor-pointer shadow-lg shadow-pink-600/10"
+                    >
+                      <span>💾 라이브러리 등록</span>
+                    </button>
+                    <button
+                      onClick={handleCancelCreation}
+                      className="px-3 flex h-8 items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-extrabold transition-all cursor-pointer"
+                    >
+                      <span>취소</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

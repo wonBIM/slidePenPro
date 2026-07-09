@@ -28,6 +28,15 @@ interface PresetStamp {
   label: string;
 }
 
+export interface CustomEffect {
+  id: string;
+  name: string;
+  shape: "heart" | "star" | "cloud";
+  style: "crystal" | "jelly" | "gold";
+  animation: "explosion" | "rain" | "float";
+  createdAt: number;
+}
+
 export default function App() {
   // Core Application States
   const [mode, setMode] = useState<"biz" | "fun">("fun");
@@ -198,6 +207,29 @@ export default function App() {
     { id: "correct", label: "🎉 정답입니다" },
     { id: "wrong", label: "⚠️ 확인해보세요" }
   ]);
+
+  // 🪄 AI Custom Effects States (Loaded from LocalStorage)
+  const [customEffects, setCustomEffects] = useState<CustomEffect[]>(() => {
+    try {
+      const saved = localStorage.getItem("slidepen_custom_effects");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Save to local storage on change
+  useEffect(() => {
+    localStorage.setItem("slidepen_custom_effects", JSON.stringify(customEffects));
+  }, [customEffects]);
+
+  const [isAiSketchActive, setIsAiSketchActive] = useState(false);
+  const [isAiConverting, setIsAiConverting] = useState(false);
+  const [aiResultCandidates, setAiResultCandidates] = useState<{ label: string; emoji: string; confidence: number; shape: "heart" | "star" | "cloud" }[]>([]);
+
+  const handleTriggerCustomEffect = (effect: CustomEffect) => {
+    effectsRef.current?.playCustomEffect?.(effect.shape, effect.style, effect.animation);
+  };
 
   // Keyboard Guide HUD State
   const [showHUD, setShowHUD] = useState(false);
@@ -1102,6 +1134,15 @@ export default function App() {
         setShowSpinner={setShowSpinner}
         showTimer={showTimer}
         setShowTimer={setShowTimer}
+        customEffects={customEffects}
+        setCustomEffects={setCustomEffects}
+        isAiSketchActive={isAiSketchActive}
+        setIsAiSketchActive={setIsAiSketchActive}
+        isAiConverting={isAiConverting}
+        setIsAiConverting={setIsAiConverting}
+        aiResultCandidates={aiResultCandidates}
+        setAiResultCandidates={setAiResultCandidates}
+        triggerCustomEffect={handleTriggerCustomEffect}
       />
 
       {/* 6. Keys Shortcut Heads-Up Display (HUD) */}
