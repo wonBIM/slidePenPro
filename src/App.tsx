@@ -336,6 +336,7 @@ export default function App() {
   };
 
   const handleClearPageStrokes = () => {
+    console.log(`[App] Clearing page strokes for activePageKey: ${activePageKey}`);
     setStrokesByPage((prev) => ({ ...prev, [activePageKey]: [] }));
     setStampsByPage((prev) => ({ ...prev, [activePageKey]: [] }));
     effectsRef.current?.playAudioPreset("focus");
@@ -470,7 +471,7 @@ export default function App() {
         }
       }
 
-      if (!isDrawing && zoomLevel === 1.0 && !isAreaZoomActive) {
+      if (zoomLevel === 1.0 && !isAreaZoomActive) {
         if (e.key === "ArrowLeft") {
           e.preventDefault();
           handlePrevPage();

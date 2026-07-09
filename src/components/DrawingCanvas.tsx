@@ -153,7 +153,12 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform matrix to identity
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear entire physical pixels
+    ctx.scale(dpr, dpr); // Re-apply DPR scale
+
+    console.log(`[DrawingCanvas] Rendering ${strokes.length} strokes. Canvas size: ${canvas.width}x${canvas.height}, DPR: ${dpr}`);
 
     if (isAreaZoomActive && areaZoomStart && areaZoomCurrent) {
       ctx.save();
@@ -177,26 +182,25 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     ctx.translate(zoomOffset.x, zoomOffset.y);
     ctx.scale(zoomLevel, zoomLevel);
 
-    const containerWidth = canvas.width / (window.devicePixelRatio || 1);
-    const containerHeight = canvas.height / (window.devicePixelRatio || 1);
-    const slideRatio = 16 / 9;
+    // const containerWidth = canvas.width / (window.devicePixelRatio || 1);
+    // const containerHeight = canvas.height / (window.devicePixelRatio || 1);
+    // const slideRatio = 16 / 9;
+    // let slideW = containerWidth;
+    // let slideH = containerHeight;
+    // let slideX = 0;
+    // let slideY = 0;
+    // if (containerWidth / containerHeight > slideRatio) {
+    //   slideW = containerHeight * slideRatio;
+    //   slideX = (containerWidth - slideW) / 2;
+    // } else {
+    //   slideH = containerWidth / slideRatio;
+    //   slideY = (containerHeight - slideH) / 2;
+    // }
 
-    let slideW = containerWidth;
-    let slideH = containerHeight;
-    let slideX = 0;
-    let slideY = 0;
-
-    if (containerWidth / containerHeight > slideRatio) {
-      slideW = containerHeight * slideRatio;
-      slideX = (containerWidth - slideW) / 2;
-    } else {
-      slideH = containerWidth / slideRatio;
-      slideY = (containerHeight - slideH) / 2;
-    }
-
-    ctx.beginPath();
-    ctx.rect(slideX, slideY, slideW, slideH);
-    ctx.clip();
+    // Allow drawing outside the 16:9 slide bounds (no clipping)
+    // ctx.beginPath();
+    // ctx.rect(slideX, slideY, slideW, slideH);
+    // ctx.clip();
 
     strokes.forEach((stroke) => {
       ctx.globalAlpha = stroke.opacity;
