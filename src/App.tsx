@@ -86,6 +86,8 @@ export default function App() {
   // Custom Stamp inputs & Shape Styling
   const [customText, setCustomText] = useState("");
   const [customShape, setCustomShape] = useState<"badge" | "circle" | "bubble" | "star">("badge");
+  const [stampScale, setStampScale] = useState<number>(1.0);
+  const [aiEffectScale, setAiEffectScale] = useState<number>(1.0);
 
   // ⏳ Auto Fade Option
   const [autoFadeActive, setAutoFadeActive] = useState(true);
@@ -224,13 +226,7 @@ export default function App() {
     localStorage.setItem("slidepen_custom_effects", JSON.stringify(customEffects));
   }, [customEffects]);
 
-  const [openaiApiKey, setOpenaiApiKey] = useState(() => {
-    return localStorage.getItem("slidepen_openai_api_key") || "";
-  });
 
-  useEffect(() => {
-    localStorage.setItem("slidepen_openai_api_key", openaiApiKey);
-  }, [openaiApiKey]);
 
   const [isAiSketchActive, setIsAiSketchActive] = useState(false);
   const [isAiConverting, setIsAiConverting] = useState(false);
@@ -336,7 +332,7 @@ export default function App() {
   // Send slide control keyboard events to PowerPoint in background via Tauri
   const triggerPPTKeyBypass = async (direction: "left" | "right") => {
     try {
-      const { invoke } = await import("@tauri-apps/api");
+      const { invoke } = await import("@tauri-apps/api/tauri");
       await invoke("send_key_to_ppt", { keyType: direction });
       console.log(`SlidePro: Keystroke bypass [${direction}] sent to PPT.`);
     } catch (e) {
@@ -670,6 +666,7 @@ export default function App() {
       type: stampType,
       text: stampText,
       shape: stampType === "custom" || currentStamp ? customShape : undefined,
+      scale: stampScale,
       createdAt: Date.now()
     };
 
@@ -1049,7 +1046,7 @@ export default function App() {
           isDrawing={isDrawing}
           strokeColor={strokeColor}
           strokeWidth={strokeWidth}
-          smartSnap={smartSnap}
+          smartSnap={isAiSketchActive ? false : smartSnap}
           mode={mode}
           zoomLevel={zoomLevel}
           zoomOffset={zoomOffset}
@@ -1057,7 +1054,7 @@ export default function App() {
           onStampPlaced={handleStampPlaced}
           isAreaZoomActive={isAreaZoomActive}
           onAreaZoomSelected={handleAreaZoomSelected}
-          autoFadeActive={autoFadeActive}
+          autoFadeActive={isAiSketchActive ? false : autoFadeActive}
           onDrawStart={(speed) => effectsRef.current?.startScribbleSound(speed)}
           onDrawStop={() => effectsRef.current?.stopScribbleSound()}
           onSnapSuccess={() => effectsRef.current?.playAudioPreset("ding")}
@@ -1073,6 +1070,7 @@ export default function App() {
           zoomOffset={zoomOffset}
           soundEnabled={soundEnabled}
           isEffectsInteractive={isEffectsInteractive}
+          aiEffectScale={aiEffectScale}
         />
       </div>
 
@@ -1149,8 +1147,10 @@ export default function App() {
         isAiConverting={isAiConverting}
         setIsAiConverting={setIsAiConverting}
         triggerCustomEffect={handleTriggerCustomEffect}
-        openaiApiKey={openaiApiKey}
-        setOpenaiApiKey={setOpenaiApiKey}
+        stampScale={stampScale}
+        setStampScale={setStampScale}
+        aiEffectScale={aiEffectScale}
+        setAiEffectScale={setAiEffectScale}
       />
 
       {/* 6. Keys Shortcut Heads-Up Display (HUD) */}

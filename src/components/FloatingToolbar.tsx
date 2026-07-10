@@ -24,6 +24,8 @@ import {
   Check
 } from "lucide-react";
 
+import { invoke } from "@tauri-apps/api/tauri";
+
 interface PresetStamp {
   id: string;
   label: string;
@@ -92,8 +94,10 @@ interface FloatingToolbarProps {
   isAiConverting: boolean;
   setIsAiConverting: (val: boolean) => void;
   triggerCustomEffect: (effect: any) => void;
-  openaiApiKey: string;
-  setOpenaiApiKey: (val: string) => void;
+  stampScale: number;
+  setStampScale: (scale: number) => void;
+  aiEffectScale: number;
+  setAiEffectScale: (scale: number) => void;
 }
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
@@ -153,8 +157,10 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   isAiConverting,
   setIsAiConverting,
   triggerCustomEffect,
-  openaiApiKey,
-  setOpenaiApiKey
+  stampScale,
+  setStampScale,
+  aiEffectScale,
+  setAiEffectScale
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showStickerPanel, setShowStickerPanel] = useState(false); // Sticker Popover
@@ -165,8 +171,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   
   // 🪄 AI Custom Effect Creation local states
   const [showAiCustomPanel, setShowAiCustomPanel] = useState(false); // Standalone AI Custom Panel toggle
-  const [showApiKeySetting, setShowApiKeySetting] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(openaiApiKey);
   const [promptHint, setPromptHint] = useState("");
   const [generatedImageUrl, setGeneratedImageUrl] = useState("");
   const [creationStep, setCreationStep] = useState<"idle" | "sketching" | "naming">("idle");
@@ -183,10 +187,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       setCreationStep("idle");
     }
   }, [isAiSketchActive, creationStep]);
-
-  useEffect(() => {
-    setApiKeyInput(openaiApiKey);
-  }, [openaiApiKey]);
   
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const imagesInputRef = useRef<HTMLInputElement>(null);
@@ -304,13 +304,9 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   };
 
   const handleConvertSketch = async () => {
-    if (!openaiApiKey.trim()) {
-      alert("OpenAI API Key를 먼저 입력해 주세요. (우측 상단 톱니바퀴 클릭)");
-      setShowApiKeySetting(true);
-      return;
-    }
-
+    console.log("[handleConvertSketch] starting conversion...");
     const base64Img = getCanvasBase64();
+    console.log("[handleConvertSketch] base64Img length:", base64Img ? base64Img.length : "null");
     if (!base64Img) {
       alert("스케치 캔버스를 찾을 수 없습니다.");
       return;
@@ -319,44 +315,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     setIsAiConverting(true);
 
     try {
-      // 1. Call OpenAI GPT-4o-mini Vision to analyze the sketch
-      const visionResp = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${openaiApiKey}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "이 이미지는 사용자가 칠판에 손으로 그린 간단한 스케치 낙서입니다. 무엇을 그렸는지 판독해 주세요. 답변은 반드시 한국어 단어와 괄호 속의 영어 번역 형태로 출력해 주세요. 예: '비행기 (Airplane)'. 설명이나 문장 없이 반드시 이 양식만 단 한 줄로 반환해 주세요. 만약 무엇인지 전혀 판독할 수 없다면 사용자가 입력한 힌트 단어를 활용해 비슷한 결과로 유추해 반환하세요."
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:image/png;base64,${base64Img}`
-                  }
-                }
-              ]
-            }
-          ],
-          max_tokens: 60
-        })
+      console.log("[handleConvertSketch] invoking call_gemini_api vision...");
+      // 1. Call Gemini 1.5 Flash Vision backend to analyze the sketch
+      const recognizedText = await invoke<string>("call_gemini_api", {
+        action: "vision",
+        base64Image: base64Img,
+        prompt: promptHint
       });
 
-      if (!visionResp.ok) {
-        const err = await visionResp.json();
-        throw new Error(err.error?.message || "GPT Vision 분석 실패");
-      }
-
-      const visionData = await visionResp.json();
-      const recognizedText = visionData.choices[0]?.message?.content?.trim() || "비행기 (Airplane)";
-      
       const match = recognizedText.match(/\(([^)]+)\)/);
       const englishWord = match ? match[1].trim() : recognizedText;
       const koreanWord = recognizedText.split("(")[0].trim();
@@ -364,7 +330,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       setSelectedShape(koreanWord);
       setEffectName(`${koreanWord} AI 이펙트`);
 
-      // 2. Call OpenAI DALL-E to generate the image
+      // 2. Call Gemini Imagen 3 backend to generate the image
       const stylePromptMap = {
         crystal: "crystal neon style with glowing colorful light vectors, translucent glassy surfaces, sharp emissive edges",
         jelly: "cute 3D jelly plastic style, soft glossy texture, highlights, smooth rounded shape, vibrant colors",
@@ -372,39 +338,19 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       };
       
       const chosenStyle = stylePromptMap[selectedStyle as keyof typeof stylePromptMap] || stylePromptMap.crystal;
-      let dallEPrompt = `A single standalone isolated 3D asset icon of a ${englishWord} in ${chosenStyle}`;
+      let imagenPrompt = `A single standalone isolated 3D asset icon of a ${englishWord} in ${chosenStyle}`;
       if (promptHint.trim()) {
-        dallEPrompt += `, incorporating element details: ${promptHint.trim()}`;
+        imagenPrompt += `, incorporating element details: ${promptHint.trim()}`;
       }
-      dallEPrompt += `, black solid background, center aligned, mobile game ui icon asset style, highly detailed digital art.`;
+      imagenPrompt += `, black solid background, center aligned, mobile game ui icon asset style, highly detailed digital art.`;
 
-      const imageResp = await fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${openaiApiKey}`
-        },
-        body: JSON.stringify({
-          model: "dall-e-2",
-          prompt: dallEPrompt,
-          n: 1,
-          size: "256x256"
-        })
+      const rawBase64Url = await invoke<string>("call_gemini_api", {
+        action: "generate",
+        prompt: imagenPrompt
       });
 
-      if (!imageResp.ok) {
-        const err = await imageResp.json();
-        throw new Error(err.error?.message || "DALL-E 이미지 생성 실패");
-      }
-
-      const imageData = await imageResp.json();
-      const rawUrl = imageData?.data[0]?.url;
-      if (!rawUrl) {
-        throw new Error("DALL-E 이미지 생성 URL을 반환받지 못했습니다.");
-      }
-
       // 3. Make transparent PNG and read as base64
-      const transparentUrl = await fetchAndMakeTransparent(rawUrl);
+      const transparentUrl = await fetchAndMakeTransparent(rawBase64Url);
       setGeneratedImageUrl(transparentUrl);
       
       // Proceed to naming step
@@ -444,6 +390,16 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     setCustomEffects((prev) => prev.filter((eff) => eff.id !== idToDelete));
   };
 
+  const handleToggleEffectAnimation = (e: React.MouseEvent, id: string, currentAnim: "explosion" | "rain" | "float") => {
+    e.stopPropagation();
+    const animOrder: ("explosion" | "rain" | "float")[] = ["explosion", "rain", "float"];
+    const currentIndex = animOrder.indexOf(currentAnim);
+    const nextAnim = animOrder[(currentIndex + 1) % animOrder.length];
+    setCustomEffects((prev) =>
+      prev.map((eff) => (eff.id === id ? { ...eff, animation: nextAnim } : eff))
+    );
+  };
+
   return (
     <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 transition-all duration-300 ease-out select-none">
       
@@ -479,6 +435,23 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 기능 끄기 (OFF)
               </button>
             )}
+          </div>
+
+          {/* 📏 Sticker Size Slider */}
+          <div className="flex flex-col gap-1.5 bg-slate-950/40 p-2.5 rounded-lg border border-slate-850">
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-extrabold tracking-tight">
+              <span>📏 스티커 크기 설정</span>
+              <span className="text-pink-400 font-mono">{Math.round(stampScale * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="2.5"
+              step="0.1"
+              value={stampScale}
+              onChange={(e) => setStampScale(parseFloat(e.target.value))}
+              className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-500"
+            />
           </div>
 
           {/* Stckers preset lists */}
@@ -880,44 +853,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
             </button>
           </div>
 
-          {/* API Key Configuration Block */}
-          {(!openaiApiKey.trim() || showApiKeySetting) ? (
-            <div className="flex flex-col gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-850 animate-fade-in">
-              <div className="text-xs text-slate-400 font-bold leading-relaxed">
-                💡 실시간 생성형 AI 기능을 사용하려면 **OpenAI API Key**가 필요합니다. 입력된 키는 로컬에 안전하게 보관됩니다.
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold">OpenAI API Key</span>
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="sk-..."
-                  className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-pink-500/50 w-full"
-                />
-              </div>
-              <div className="flex gap-2 mt-1">
-                <button
-                  onClick={() => {
-                    setOpenaiApiKey(apiKeyInput.trim());
-                    setShowApiKeySetting(false);
-                  }}
-                  className="flex-1 h-9 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-xs font-black transition-colors cursor-pointer border-none"
-                >
-                  저장하기
-                </button>
-                {openaiApiKey.trim() && (
-                  <button
-                    onClick={() => setShowApiKeySetting(false)}
-                    className="px-3.5 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-black transition-colors cursor-pointer border-none"
-                  >
-                    닫기
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3">
               {/* Spinner / Loading state */}
               {isAiConverting ? (
                 <div className="flex flex-col items-center justify-center py-8 gap-3 bg-slate-950/60 rounded-xl border border-slate-850">
@@ -930,6 +866,23 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 </div>
               ) : creationStep === "idle" ? (
                 <>
+                  {/* ✨ AI Effect Size Slider */}
+                  <div className="flex flex-col gap-1.5 bg-slate-950/40 p-2.5 rounded-xl border border-slate-850/80">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-extrabold tracking-tight">
+                      <span>✨ AI 이펙트 크기 설정</span>
+                      <span className="text-pink-400 font-mono">{Math.round(aiEffectScale * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="3.0"
+                      step="0.1"
+                      value={aiEffectScale}
+                      onChange={(e) => setAiEffectScale(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                    />
+                  </div>
+
                   {/* Library List */}
                   <div className="flex flex-col gap-2 max-h-[170px] overflow-y-auto pr-1 bg-slate-950/40 p-2.5 rounded-xl border border-slate-850/80">
                     <div className="text-[10px] text-slate-500 font-black mb-1">내 커스텀 효과 라이브러리 ({customEffects.length})</div>
@@ -960,9 +913,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                                 <span className="truncate text-xs">{eff.name}</span>
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
-                                <span className="text-[10px] px-2 py-0.5 bg-slate-950 text-slate-500 rounded-md border border-slate-850">
-                                  {animMap[eff.animation as keyof typeof animMap]}
-                                </span>
+                                <button
+                                  onClick={(e) => handleToggleEffectAnimation(e, eff.id, eff.animation)}
+                                  className="text-[9px] px-1.5 py-0.5 bg-slate-950 text-slate-400 hover:text-pink-400 hover:border-pink-500/50 rounded-md border border-slate-850 transition-all cursor-pointer font-bold flex items-center gap-1"
+                                  title="클릭하여 파티클 애니메이션 변경 (폭죽/비/둥실)"
+                                >
+                                  <span>{animMap[eff.animation as keyof typeof animMap]}</span>
+                                  <span>{eff.animation === "explosion" ? "폭죽" : eff.animation === "rain" ? "비" : "둥실"}</span>
+                                </button>
                                 <button
                                   onClick={(e) => handleDeleteCustomEffect(e, eff.id)}
                                   className="text-slate-600 hover:text-red-400 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none bg-transparent"
@@ -984,16 +942,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   >
                     <span>🎨 AI 스케치 그리기 시작</span>
                   </button>
-
-                  <div className="flex justify-end mt-1">
-                    <button
-                      onClick={() => setShowApiKeySetting(true)}
-                      className="text-[10px] text-slate-500 hover:text-slate-350 transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-none"
-                    >
-                      <Settings className="h-3 w-3" />
-                      <span>API Key 재설정</span>
-                    </button>
-                  </div>
                 </>
               ) : creationStep === "sketching" ? (
                 <div className="flex flex-col gap-3 bg-slate-950/60 p-3 rounded-xl border border-pink-500/20 animate-fade-in">
@@ -1116,7 +1064,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 </div>
               )}
             </div>
-          )}
         </div>
       )}
 

@@ -63,19 +63,180 @@ fn send_key_to_ppt(key_type: String) {
   }
 }
 
+fn get_gemini_key_from_file() -> Option<String> {
+  if let Ok(key) = std::env::var("GEMINI_API_KEY") {
+    let key_trimmed = key.trim().to_string();
+    if !key_trimmed.is_empty() {
+      let len = key_trimmed.len();
+      let prefix = if len >= 6 { &key_trimmed[0..6] } else { "" };
+      let suffix = if len >= 4 { &key_trimmed[len-4..len] } else { "" };
+      println!("[Rust Backend] Loaded GEMINI_API_KEY env: len={}, prefix='{}...', suffix='...{}'", len, prefix, suffix);
+      return Some(key_trimmed);
+    }
+  }
+
+  if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
+    let mut path = std::path::PathBuf::from(home);
+    path.push(".slidepenpro");
+    path.push("gemini.key");
+    if path.exists() {
+      if let Ok(content) = std::fs::read_to_string(path) {
+        let key_trimmed = content.trim().to_string();
+        if !key_trimmed.is_empty() {
+          return Some(key_trimmed);
+        }
+      }
+    }
+  }
+  
+  if let Ok(appdata) = std::env::var("LOCALAPPDATA") {
+    let mut path = std::path::PathBuf::from(appdata);
+    path.push("slidepro");
+    path.push("gemini.key");
+    if path.exists() {
+      if let Ok(content) = std::fs::read_to_string(path) {
+        let key_trimmed = content.trim().to_string();
+        if !key_trimmed.is_empty() {
+          return Some(key_trimmed);
+        }
+      }
+    }
+  }
+  
+  None
+}
+
+#[tauri::command]
+async fn call_gemini_api(
+  action: String,
+  base64_image: Option<String>,
+  prompt: Option<String>,
+) -> Result<String, String> {
+  println!("[Rust Backend] call_gemini_api invoked! Action: {}, Prompt: {:?}", action, prompt);
+  let api_key = get_gemini_key_from_file().ok_or_else(|| {
+    let err = "Gemini API key not found. Please set the GEMINI_API_KEY environment variable or save your key in C:\\Users\\<username>\\.slidepenpro\\gemini.key".to_string();
+    println!("[Rust Backend] Error: {}", err);
+    err
+  })?;
+
+  let client = reqwest::Client::new();
+
+  if action == "vision" {
+    let img_base64 = base64_image.ok_or("Missing base64_image parameter for vision analysis")?;
+    let user_hint = prompt.unwrap_or_default();
+    
+    let url = format!(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}",
+      api_key
+    );
+
+    let system_instruction = "이 이미지는 사용자가 칠판에 손으로 그린 간단한 스케치 낙서입니다. 무엇을 그렸는지 판독해 주세요. 답변은 반드시 한국어 단어와 괄호 속의 영어 번역 형태로 출력해 주세요. 예: '비행기 (Airplane)'. 설명이나 문장 없이 반드시 이 양식만 단 한 줄로 반환해 주세요. 만약 무엇인지 전혀 판독할 수 없다면 사용자가 입력한 힌트 단어를 활용해 비슷한 결과로 유추해 반환하세요. 힌트 단어: ";
+    let full_prompt = format!("{}{}", system_instruction, user_hint);
+
+    let payload = serde_json::json!({
+      "contents": [
+        {
+          "parts": [
+            { "text": full_prompt },
+            {
+              "inlineData": {
+                "mimeType": "image/png",
+                "data": img_base64
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    let resp = client.post(&url)
+      .json(&payload)
+      .send()
+      .await
+      .map_err(|e| format!("Gemini Vision request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+      let status = resp.status();
+      let err_txt = resp.text().await.unwrap_or_default();
+      
+      let mut debug_info = String::new();
+      let test_url = format!("https://generativelanguage.googleapis.com/v1beta/models?key={}", api_key);
+      if let Ok(test_resp) = client.get(&test_url).send().await {
+        if let Ok(txt) = test_resp.text().await {
+          debug_info = format!("\n[Available Models Debug]: {}", txt);
+        }
+      }
+      return Err(format!("Gemini Vision API returned error status {}: {}{}", status, err_txt, debug_info));
+    }
+
+    let res_json: serde_json::Value = resp.json()
+      .await
+      .map_err(|e| format!("Failed to parse Gemini response: {}", e))?;
+
+    let text = res_json["candidates"][0]["content"]["parts"][0]["text"]
+      .as_str()
+      .ok_or("Unexpected response structure from Gemini Vision API")?
+      .trim()
+      .to_string();
+
+    Ok(text)
+  } else if action == "generate" {
+    let pmt = prompt.ok_or("Missing prompt parameter for image generation")?;
+    let url = format!(
+      "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key={}",
+      api_key
+    );
+
+    let payload = serde_json::json!({
+      "instances": [
+        { "prompt": pmt }
+      ],
+      "parameters": {
+        "sampleCount": 1,
+        "aspectRatio": "1:1",
+        "outputMimeType": "image/png"
+      }
+    });
+
+    let resp = client.post(&url)
+      .json(&payload)
+      .send()
+      .await
+      .map_err(|e| format!("Gemini Imagen request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+      let status = resp.status();
+      let err_txt = resp.text().await.unwrap_or_default();
+      return Err(format!("Gemini Imagen API returned error status {}: {}", status, err_txt));
+    }
+
+    let res_json: serde_json::Value = resp.json()
+      .await
+      .map_err(|e| format!("Failed to parse Gemini response: {}", e))?;
+
+    let img_bytes = res_json["predictions"][0]["bytesBase64Encoded"]
+      .as_str()
+      .ok_or("Unexpected response structure from Gemini Imagen API")?
+      .trim()
+      .to_string();
+
+    Ok(format!("data:image/png;base64,{}", img_bytes))
+  } else {
+    Err(format!("Unknown action type: {}", action))
+  }
+}
+
 fn main() {
+  dotenvy::dotenv().ok();
   tauri::Builder::default()
     .setup(|app| {
-      // Get the main window handler
       let window = app.get_window("main").unwrap();
       println!("SlidePro Backend: Window object successfully initialized.");
       
-      // On Windows, initialize DPI awareness and window layer attributes if necessary
       #[cfg(target_os = "windows")]
       {
         use winapi::shared::windef::HWND;
         
-        // Initial setup: window starts always-on-top, but NOT click-through
         if let Ok(hwnd) = window.hwnd() {
           let _hwnd_raw = hwnd.0 as HWND;
           println!("SlidePro Backend: HWND handle acquired.");
@@ -86,7 +247,8 @@ fn main() {
     })
     .invoke_handler(tauri::generate_handler![
       set_ignore_mouse_events,
-      send_key_to_ppt
+      send_key_to_ppt,
+      call_gemini_api
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

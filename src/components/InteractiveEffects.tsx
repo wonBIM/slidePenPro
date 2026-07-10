@@ -8,6 +8,7 @@ export interface StampInstance {
   type: string; // "excellent" | "focus" | "correct" | "wrong" | "custom"
   text?: string;
   shape?: "badge" | "circle" | "bubble" | "star";
+  scale?: number;
   createdAt: number;
 }
 
@@ -17,6 +18,7 @@ interface InteractiveEffectsProps {
   zoomOffset: { x: number; y: number };
   soundEnabled: boolean;
   isEffectsInteractive: boolean;
+  aiEffectScale: number;
 }
 
 export interface InteractiveEffectsRef {
@@ -277,7 +279,7 @@ const getStylizedSvg = (shape: "heart" | "star" | "cloud", style: "crystal" | "j
 };
 
 export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveEffectsProps>(
-  ({ stamps, zoomLevel, zoomOffset, soundEnabled, isEffectsInteractive }, ref) => {
+  ({ stamps, zoomLevel, zoomOffset, soundEnabled, isEffectsInteractive, aiEffectScale }, ref) => {
     const confettiCanvasRef = useRef<HTMLCanvasElement>(null);
     const effectsCanvasRef = useRef<HTMLCanvasElement>(null);
     
@@ -329,9 +331,8 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             vy: 0,
             type: parentStamp.type,
             text: textContent,
-            shape: parentStamp.shape || "badge",
-            scale: 0.05,
-            targetScale: 1.0,
+            scale: 0.05 * (parentStamp.scale || 1.0),
+            targetScale: parentStamp.scale || 1.0,
             scaleVel: 0,
             isDragging: false,
             width: w,
@@ -743,8 +744,8 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
           const s = localStampsRef.current[i];
           const screenX = s.x * zoomLevel + zoomOffset.x;
           const screenY = s.y * zoomLevel + zoomOffset.y;
-          const sWidth = s.width * zoomLevel;
-          const sHeight = s.height * zoomLevel;
+          const sWidth = s.width * s.scale * zoomLevel;
+          const sHeight = s.height * s.scale * zoomLevel;
           const halfW = sWidth / 2;
           const halfH = sHeight / 2;
 
@@ -1207,8 +1208,8 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             p.vy += 0.08; // gravity
             p.vx = Math.sin(p.life / 15) * 0.5; // slight sway
           } else if (p.animation === "float") {
-            p.vy = -1.5 - Math.sin(p.life / 30) * 0.5; // float velocity
-            p.vx = Math.sin(p.life / 20) * 0.8; // wobble sway
+            p.vy = -2.2 - Math.sin(p.life / 30) * 0.8; // float velocity
+            p.vx = Math.sin(p.life / 20) * 1.0; // wobble sway
           } else if (p.animation === "explosion") {
             p.vx *= 0.98; // air resistance friction
             p.vy *= 0.98;
@@ -1323,7 +1324,7 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
               y: spawnY,
               vx: Math.cos(angle) * speed,
               vy: Math.sin(angle) * speed,
-              size: 24 + Math.random() * 24,
+              size: (24 + Math.random() * 24) * aiEffectScale,
               opacity: 1.0,
               rotation: Math.random() * Math.PI * 2,
               rotSpeed: -0.1 + Math.random() * 0.2,
@@ -1341,7 +1342,7 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
               y: -50 - Math.random() * 150,
               vx: -1 + Math.random() * 2,
               vy: 2 + Math.random() * 4,
-              size: 20 + Math.random() * 20,
+              size: (20 + Math.random() * 20) * aiEffectScale,
               opacity: 1.0,
               rotation: Math.random() * Math.PI * 2,
               rotSpeed: -0.05 + Math.random() * 0.1,
@@ -1356,17 +1357,17 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             customParticlesRef.current.push({
               id: Math.random().toString(36).substring(7),
               x: Math.random() * width,
-              y: height + 50 + Math.random() * 150,
+              y: height + 10 + Math.random() * 80,
               vx: -0.5 + Math.random() * 1,
-              vy: -1.5 - Math.random() * 3,
-              size: 20 + Math.random() * 24,
+              vy: -2.0 - Math.random() * 3.5,
+              size: (20 + Math.random() * 24) * aiEffectScale,
               opacity: 1.0,
               rotation: Math.random() * Math.PI * 2,
               rotSpeed: -0.02 + Math.random() * 0.04,
               image: img,
               animation: "float",
               life: 0,
-              maxLife: 150 + Math.random() * 100
+              maxLife: 350 + Math.random() * 250
             });
           }
         }
