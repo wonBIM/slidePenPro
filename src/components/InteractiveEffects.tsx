@@ -331,6 +331,7 @@ export const InteractiveEffects = forwardRef<InteractiveEffectsRef, InteractiveE
             vy: 0,
             type: parentStamp.type,
             text: textContent,
+            shape: parentStamp.shape || "badge",
             scale: 0.05 * (parentStamp.scale || 1.0),
             targetScale: parentStamp.scale || 1.0,
             scaleVel: 0,

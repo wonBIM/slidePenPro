@@ -89,13 +89,23 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const autoFadeRef = useRef(autoFadeActive);
+
+  // Sync ref with prop changes instantly
+  useEffect(() => {
+    autoFadeRef.current = autoFadeActive;
+  }, [autoFadeActive]);
+
   // Unified Auto-Fade loop
   useEffect(() => {
     const fadeInterval = setInterval(() => {
-      if (!autoFadeActive) return;
+      if (!autoFadeRef.current) return;
 
       const now = Date.now();
       setStrokes((prevStrokes) => {
+        // Optimization: Skip calculations and state trigger if there are no strokes
+        if (prevStrokes.length === 0) return prevStrokes;
+
         let changed = false;
         const nextStrokes = prevStrokes.map((stroke) => {
           const age = now - stroke.createdAt;
@@ -121,7 +131,7 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     }, 50);
 
     return () => clearInterval(fadeInterval);
-  }, [autoFadeActive]);
+  }, []);
 
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>): Point => {
     const canvas = canvasRef.current;

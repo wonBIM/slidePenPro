@@ -5,12 +5,14 @@ interface ScreenSharePresenterProps {
   zoomLevel: number;
   zoomOffset: { x: number; y: number };
   onStreamStatusChange: (isActive: boolean) => void;
+  onCancel?: () => void;
 }
 
 export const ScreenSharePresenter: React.FC<ScreenSharePresenterProps> = ({
   zoomLevel,
   zoomOffset,
-  onStreamStatusChange
+  onStreamStatusChange,
+  onCancel
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -35,19 +37,13 @@ export const ScreenSharePresenter: React.FC<ScreenSharePresenterProps> = ({
       setStream(mediaStream);
       onStreamStatusChange(true);
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
-
       // Track if user clicks native browser "Stop Sharing" button
       mediaStream.getVideoTracks()[0].onended = () => {
         stopScreenShare();
       };
     } catch (err: any) {
       console.error("Screen sharing initialization failed:", err);
-      if (err.name !== "NotAllowedError") {
-        setError("화면 공유를 시작할 수 없습니다. 권한 설정을 확인하세요.");
-      }
+      setError(`화면 공유 실패: [${err.name}] ${err.message || err}`);
       onStreamStatusChange(false);
     } finally {
       setLoading(false);
@@ -58,16 +54,47 @@ export const ScreenSharePresenter: React.FC<ScreenSharePresenterProps> = ({
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
       setStream(null);
-      onStreamStatusChange(false);
     }
+    onStreamStatusChange(false);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
   };
 
-  // Cleanup on unmount
+  // Bind media stream to video element once it is mounted in the DOM
   useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) return;
+
+    console.log("[ScreenSharePresenter] Binding stream to video element via useEffect");
+    video.srcObject = stream;
+    video.play().catch((playErr) => {
+      console.error("[ScreenSharePresenter] Failed to play video stream inside useEffect:", playErr);
+    });
+
     return () => {
+      if (video) {
+        video.srcObject = null;
+      }
+    };
+  }, [stream]);
+
+  // Heartbeat check & Cleanup on unmount
+  useEffect(() => {
+    if (!stream) return;
+
+    // WebView2 onended event bypass safeguard:
+    // Periodically check if the screenshare track has been closed/ended by OS/browser
+    const interval = setInterval(() => {
+      const track = stream.getVideoTracks()[0];
+      if (!track || track.readyState === "ended" || !track.enabled) {
+        console.log("[ScreenSharePresenter] Detected ended track via heartbeat. Cleaning up...");
+        stopScreenShare();
+      }
+    }, 1200);
+
+    return () => {
+      clearInterval(interval);
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
@@ -87,7 +114,11 @@ export const ScreenSharePresenter: React.FC<ScreenSharePresenterProps> = ({
           <div className="max-w-md space-y-2">
             <h2 className="text-base font-bold text-slate-200">파워포인트 화면을 공유해 주세요</h2>
             <p className="text-xs text-slate-500 leading-relaxed">
-              아래 버튼을 눌러 발표할 <strong className="text-indigo-400">파워포인트 슬라이드 쇼 창</strong>을 선택해 주시면, 회사 보안망 차단 제약 없이 동영상과 애니메이션이 100% 정상 작동하는 실시간 캔버스가 활성화됩니다.
+              아래 버튼을 누른 후, 공유 대상으로 <strong className="text-indigo-400">"전체 화면" (또는 모니터 화면)</strong>을 선택해 주세요.
+            </p>
+            <p className="text-[11px] text-slate-500 leading-normal max-w-sm">
+              * 특정 '창'을 선택할 경우 PPT의 하드웨어 가속으로 인해 검은 화면으로 나올 수 있습니다. <br />
+              * <strong>검은 화면 해결:</strong> 전체 화면으로 공유하시거나, PPT 옵션 ➔ 고급 ➔ 표시 ➔ '슬라이드 쇼 하드웨어 그래픽 가속 비활성화'를 체크해 주세요.
             </p>
           </div>
 
@@ -108,6 +139,15 @@ export const ScreenSharePresenter: React.FC<ScreenSharePresenterProps> = ({
               </>
             )}
           </button>
+
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold active:scale-95 transition-all cursor-pointer"
+            >
+              이전으로 돌아가기 (취소)
+            </button>
+          )}
 
           {error && (
             <div className="mt-2 text-xs text-rose-400 font-medium">

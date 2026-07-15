@@ -24,7 +24,8 @@ import {
   Check
 } from "lucide-react";
 
-import { invoke } from "@tauri-apps/api/tauri";
+
+import { auth, convertSketchFn } from "../firebase";
 
 interface PresetStamp {
   id: string;
@@ -98,11 +99,21 @@ interface FloatingToolbarProps {
   setStampScale: (scale: number) => void;
   aiEffectScale: number;
   setAiEffectScale: (scale: number) => void;
+  onRequestLogin?: () => void;
+  currentUserEmail?: string | null;
+  userCredits?: number | null;
+  onLogout?: () => void;
+  onPurchaseCredits?: () => void;
 }
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   isDrawing,
   setIsDrawing,
+  onRequestLogin,
+  currentUserEmail,
+  userCredits,
+  onLogout,
+  onPurchaseCredits,
   strokeColor,
   setStrokeColor,
   strokeWidth,
@@ -312,17 +323,29 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       return;
     }
 
+    // 🔑 Firebase Authentication Check (Google Login required for AI features)
+    if (!auth.currentUser) {
+      console.log("[handleConvertSketch] No authenticated user. Requesting login...");
+      onRequestLogin?.();
+      return;
+    }
+
     setIsAiConverting(true);
 
     try {
-      console.log("[handleConvertSketch] invoking call_gemini_api vision...");
-      // 1. Call Gemini 1.5 Flash Vision backend to analyze the sketch
-      const recognizedText = await invoke<string>("call_gemini_api", {
+      console.log("[handleConvertSketch] invoking Firebase convertSketchFn for vision analysis...");
+      // 1. Call Firebase Functions Proxy sketch analysis (Gemini 2.5 Flash)
+      const visionRes = await convertSketchFn({
         action: "vision",
-        base64Image: base64Img,
+        image: base64Img,
         prompt: promptHint
       });
 
+      if (!visionRes.data || !visionRes.data.success) {
+        throw new Error(visionRes.data?.error || "스케치 분석에 실패했습니다.");
+      }
+
+      const recognizedText = visionRes.data.data || "";
       const match = recognizedText.match(/\(([^)]+)\)/);
       const englishWord = match ? match[1].trim() : recognizedText;
       const koreanWord = recognizedText.split("(")[0].trim();
@@ -330,7 +353,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       setSelectedShape(koreanWord);
       setEffectName(`${koreanWord} AI 이펙트`);
 
-      // 2. Call Gemini Imagen 3 backend to generate the image
+      // 2. Build styled prompt for Imagen 4.0
       const stylePromptMap = {
         crystal: "crystal neon style with glowing colorful light vectors, translucent glassy surfaces, sharp emissive edges",
         jelly: "cute 3D jelly plastic style, soft glossy texture, highlights, smooth rounded shape, vibrant colors",
@@ -344,12 +367,21 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       }
       imagenPrompt += `, black solid background, center aligned, mobile game ui icon asset style, highly detailed digital art.`;
 
-      const rawBase64Url = await invoke<string>("call_gemini_api", {
+      console.log("[handleConvertSketch] invoking Firebase convertSketchFn for Imagen 4.0 generation...");
+      // 3. Call Firebase Functions Proxy image generation (Imagen 4.0)
+      const generateRes = await convertSketchFn({
         action: "generate",
+        image: "",
         prompt: imagenPrompt
       });
 
-      // 3. Make transparent PNG and read as base64
+      if (!generateRes.data || !generateRes.data.success) {
+        throw new Error(generateRes.data?.error || "이미지 생성에 실패했습니다.");
+      }
+
+      const rawBase64Url = generateRes.data.data || "";
+
+      // 4. Make transparent PNG and read as base64
       const transparentUrl = await fetchAndMakeTransparent(rawBase64Url);
       setGeneratedImageUrl(transparentUrl);
       
@@ -852,6 +884,48 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
               <X className="h-4 w-4" />
             </button>
           </div>
+
+          {/* User Session Info Header */}
+          {currentUserEmail ? (
+            <div className="flex items-center justify-between bg-slate-950/60 border border-slate-800/80 px-2.5 py-2 rounded-xl text-[10px] text-slate-400">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-semibold text-slate-300 max-w-[180px] truncate" title={currentUserEmail}>
+                  👤 {currentUserEmail}
+                </span>
+                <span className="text-pink-400 font-bold">
+                  ⚡ 잔여 크레딧: {userCredits !== null ? `${userCredits}개` : "로딩 중..."}
+                </span>
+              </div>
+              <div className="flex gap-1.5">
+                {onPurchaseCredits && (
+                  <button
+                    onClick={onPurchaseCredits}
+                    className="px-2 py-1 bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white rounded text-[9px] font-bold cursor-pointer transition-all active:scale-95 border border-pink-550/10"
+                  >
+                    충전
+                  </button>
+                )}
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-355 hover:text-white rounded border border-slate-700 text-[9px] font-bold cursor-pointer transition-colors active:scale-95"
+                  >
+                    로그아웃
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-950/40 border border-slate-850/80 p-2.5 rounded-xl text-[10px] text-slate-400 text-center flex flex-col gap-1.5">
+              <span>현재 로그인 정보가 없습니다.</span>
+              <button
+                onClick={onRequestLogin}
+                className="w-full py-1.5 bg-gradient-to-r from-pink-500 to-indigo-500 text-white rounded font-bold text-[9px] cursor-pointer hover:brightness-110 active:scale-95 transition-all"
+              >
+                구글 간편 로그인
+              </button>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
               {/* Spinner / Loading state */}

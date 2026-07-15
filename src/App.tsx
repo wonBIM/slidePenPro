@@ -6,6 +6,11 @@ import { InteractiveEffects, InteractiveEffectsRef, StampInstance } from "./comp
 import { ScreenSharePresenter } from "./components/ScreenSharePresenter";
 import { PdfPresenter } from "./components/PdfPresenter";
 import { FileUp, X } from "lucide-react";
+import { LoginModal } from "./components/LoginModal";
+import { CreditPurchaseModal } from "./components/CreditPurchaseModal";
+import { auth, db } from "./firebase";
+import { onAuthStateChanged, User, signOut } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 
 interface Stroke {
   id: string;
@@ -79,6 +84,46 @@ export default function App() {
 
   // Drag over state
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // 4.1 Firebase Authentication & Login States
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userCredits, setUserCredits] = useState<number | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+
+  // Firestore credits listener
+  useEffect(() => {
+    if (!currentUser) {
+      setUserCredits(null);
+      return;
+    }
+    const userDocRef = doc(db, "users", currentUser.uid);
+    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setUserCredits(data.credits ?? 0);
+      }
+    });
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Observer for auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log("[App.tsx] Auth state changed:", user ? `Logged in as ${user.email}` : "Logged out");
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      console.log("[App.tsx] Signed out successfully");
+    } catch (err) {
+      console.error("[App.tsx] Logout failed:", err);
+    }
+  };
 
   // Area Crop Zoom States
   const [isAreaZoomActive, setIsAreaZoomActive] = useState(false);
@@ -949,7 +994,7 @@ export default function App() {
           earthquakeActive ? "animate-earthquake" : ""
         }`}
         style={{
-          zIndex: 10,
+          zIndex: (presentationSource === "screenshare" && !isStreamActive) ? 40 : 10,
           cursor: isPanning ? "grabbing" : zoomLevel > 1.0 ? "grab" : "default"
         }}
       >
@@ -963,11 +1008,14 @@ export default function App() {
 
         {/* A. Screenshare Presenter */}
         {presentationSource === "screenshare" && (
-          <ScreenSharePresenter
-            zoomLevel={zoomLevel}
-            zoomOffset={zoomOffset}
-            onStreamStatusChange={setIsStreamActive}
-          />
+          <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: isStreamActive ? 10 : 40 }}>
+            <ScreenSharePresenter
+              zoomLevel={zoomLevel}
+              zoomOffset={zoomOffset}
+              onStreamStatusChange={setIsStreamActive}
+              onCancel={() => setPresentationSource("simulator")}
+            />
+          </div>
         )}
 
         {/* B. PDF Presenter */}
@@ -1039,7 +1087,7 @@ export default function App() {
       )}
 
       {/* 3. Drawing Canvas Engine (CONTAINED AND CLIPPED inside fixed bounds for coordinate sync & no leaks) */}
-      <div className="fixed top-10 bottom-28 left-0 right-0 pointer-events-none overflow-hidden" style={{ zIndex: 30 }}>
+      <div className="fixed top-10 bottom-28 left-0 right-0 pointer-events-none overflow-hidden" style={{ zIndex: 30, display: (presentationSource === "screenshare" && !isStreamActive) ? "none" : "block" }}>
         <DrawingCanvas
           strokes={currentStrokes}
           setStrokes={setCurrentStrokes}
@@ -1062,7 +1110,7 @@ export default function App() {
       </div>
 
       {/* 4. Interactive Effects Component (CONTAINED AND CLIPPED inside fixed bounds for coordinate sync & no leaks) */}
-      <div className="fixed top-10 bottom-28 left-0 right-0 pointer-events-none overflow-hidden" style={{ zIndex: 35 }}>
+      <div className="fixed top-10 bottom-28 left-0 right-0 pointer-events-none overflow-hidden" style={{ zIndex: 35, display: (presentationSource === "screenshare" && !isStreamActive) ? "none" : "block" }}>
         <InteractiveEffects
           ref={effectsRef}
           stamps={currentStamps}
@@ -1151,6 +1199,11 @@ export default function App() {
         setStampScale={setStampScale}
         aiEffectScale={aiEffectScale}
         setAiEffectScale={setAiEffectScale}
+        onRequestLogin={() => setIsLoginModalOpen(true)}
+        currentUserEmail={currentUser?.email}
+        userCredits={userCredits}
+        onLogout={handleLogout}
+        onPurchaseCredits={() => setIsPurchaseModalOpen(true)}
       />
 
       {/* 6. Keys Shortcut Heads-Up Display (HUD) */}
@@ -1360,6 +1413,20 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* 11. Firebase Login Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={() => console.log("[App.tsx] Login succeeded!")}
+      />
+
+      {/* 12. Firebase Credit Purchase Modal */}
+      <CreditPurchaseModal
+        isOpen={isPurchaseModalOpen}
+        onClose={() => setIsPurchaseModalOpen(false)}
+        currentUser={currentUser}
+      />
     </div>
   );
 }

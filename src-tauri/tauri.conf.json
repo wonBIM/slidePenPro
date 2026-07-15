@@ -46,7 +46,8 @@
         "decorations": true,
         "transparent": false,
         "alwaysOnTop": false,
-        "skipTaskbar": false
+        "skipTaskbar": false,
+        "additionalBrowserArgs": "--disable-features=WebRtcAllowWgcScreenCapturer"
       }
     ]
   }
